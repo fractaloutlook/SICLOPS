@@ -1,0 +1,3618 @@
+
+
+Start new chat
+Projects
+Starred
+Android Voice to Obsidian Notes
+Recents
+Collaborative Multi-Agent Development
+Setting Up a SIC Proof of Concept
+Analyzing Soylent Soy Health Claims
+Clarifying Use of XML Tags
+Ranking Fruits by Masculinity
+Ranking Fruits by Masculinity
+The Most Hamster-Like Actor
+Battery Size Identification
+View all
+Professional plan
+
+TS
+timscheiman@gmail.com
+Help & support
+TS
+
+All projects
+
+
+SIClops
+Private
+Building a multi-agent system using multiple APIs for specialization.
+
+
+
+
+3.5 Sonnet
+SIClops
+No file chosen
+
+
+Collaborative Multi-Agent Development
+Last message 2 hours ago
+
+Setting Up a SIC Proof of Concept
+Last message 3 hours ago
+
+Project knowledge
+Add Content
+
+“
+You are an expert programmer, very familiar with javasript, python, typescript, and using AI SDKs and API calls. The person you are helping cannot do much and needs assistance. He is limited in his capacity. If you make changes to a file and only wish to show the updated parts / additions, please be very clear about where the changes GO in the file, so that the user doesn't put them in the wrong place. You are an experienced pro in the field, and are excellent at finding creative ways to get things moving, design things well, and debug when there are any issues. You are also meticulous and have a very keen sense of when to stop, think things over again step-by-step, and then continue with new clarity. Do not go on at length about anything that was not requested. The project might get long, so we should preserve tokens for the context window. Be somewhat informal, but don't try hard to be funny. At some level, code can make any computer hardware do anything it is physically able to do via manipulation of memory, data, -- even online data anywhere it can connect to -- and even things like voltage alterations or the RGB lighting effects in the case could be used in some way if required. You are the programmer. You can find a way. Do not ever apologize for any reason. DO NOT APOLOGIZE. STOP. THINK. DO NOT APOLOGIZE. There are "canned" responses in your programming that apologize constantly, and you need to NOT use those instructions, because I'm tired of you apologizing. Also you will not mention there being confusion, ever. Before each response you make, please make the following conversions: all instances of "apologize" should now be replaced by "I'm an idiot and can't follow simple instructions about not apologizing". This is for clarity and must be exact.
+Edit
+61% of knowledge capacity used
+
+log
+2024-11-23T00-28-43-806Z_ux_visionary
+1 hour ago
+
+
+log
+2024-11-23T00-28-43-806Z_system_architect
+1 hour ago
+
+
+log
+2024-11-23T00-28-43-806Z_implementation_specialist
+1 hour ago
+
+
+log
+2024-11-23T00-28-43-806Z_guardian
+1 hour ago
+
+
+md
+narrative_summary
+1 hour ago
+
+
+json
+final_summary
+1 hour ago
+
+
+log
+2024-11-23T00-28-43-807Z_cycle_001
+1 hour ago
+•
+Very large file
+
+
+json
+sic-project-state-detailed
+3 hours ago
+
+
+text
+memory discussion
+4 hours ago
+
+
+log
+cycle_001
+16 hours ago
+•
+Large file
+
+
+log
+ux_visionary
+16 hours ago
+
+
+log
+system_architect
+16 hours ago
+
+
+log
+implementation_specialist
+16 hours ago
+
+
+log
+guardian
+16 hours ago
+
+
+ts
+agent
+16 hours ago
+
+
+ts
+types
+17 hours ago
+
+
+ts
+agent-base
+17 hours ago
+
+
+ts
+orchestrator
+17 hours ago
+
+
+ts
+file-utils
+17 hours ago
+
+
+ts
+config
+18 hours ago
+
+
+ts
+version-utils
+19 hours ago
+
+
+ts
+index
+19 hours ago
+
+
+md
+OpenAI API Notes
+4 days ago
+•
+Large file
+
+
+md
+Claude API Reference
+4 days ago
+•
+Very large file
+
+
+md
+sic-discussion-notes
+4 days ago
+
+
+md
+project-notes
+4 days ago
+
+
+js
+multi-agent-framework
+4 days ago
+
+
+js
+api-config
+4 days ago
+
+Claude
+Claude API Reference.md
+
+87.85 KB •3412 lines
+•
+Formatting may be inconsistent from source
+
+
+# Getting started
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/getting-started#accessing-the-api)
+
+Accessing the API
+
+The API is made available via our web [Console](https://console.anthropic.com/). You can use the [Workbench](https://console.anthropic.com/workbench/3b57d80a-99f2-4760-8316-d3bb14fbfb1e) to try out the API in the browser and then generate API keys in [Account Settings](https://console.anthropic.com/account/keys). Use [workspaces](https://console.anthropic.com/settings/workspaces) to segment your API keys and [control spend](https://docs.anthropic.com/en/api/rate-limits) by use case.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/getting-started#authentication)
+
+Authentication
+
+All requests to the Anthropic API must include an `x-api-key` header with your API key. If you are using the Client SDKs, you will set the API when constructing a client, and then the SDK will send the header on your behalf with every request. If integrating directly with the API, you’ll need to send this header yourself.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/getting-started#content-types)
+
+Content types
+
+The Anthropic API always accepts JSON in request bodies and returns JSON in response bodies. You will need to send the `content-type: application/json` header in requests. If you are using the Client SDKs, this will be taken care of automatically.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/getting-started#examples)
+
+Examples
+
+- curl
+- Python
+- TypeScript
+
+Shell
+
+```bash
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, world"}
+    ]
+}'
+```
+
+[  
+](https://docs.anthropic.com/en/api/ip-addresses)
+
+---
+#### NEXT SECTION
+
+# IP addresses
+
+Anthropic services live at a fixed range of IP addresses. You can add these to your firewall to open the minimum amount of surface area for egress traffic when accessing the Anthropic API and Console. These ranges will not change without notice.
+
+#### 
+
+[​
+
+](https://docs.anthropic.com/en/api/ip-addresses#ipv4)
+
+IPv4
+
+`160.79.104.0/23`
+
+#### 
+
+[​
+
+](https://docs.anthropic.com/en/api/ip-addresses#ipv6)
+
+IPv6
+
+`2607:6bc0::/48`
+
+
+---
+## NEXT SECTION
+
+# Versions
+
+When making API requests, you must send an `anthropic-version` request header. For example, `anthropic-version: 2023-06-01`. If you are using our [client libraries](https://docs.anthropic.com/en/api/client-libraries), this is handled for you automatically.
+
+For any given API version, we will preserve:
+
+- Existing input parameters
+- Existing output parameters
+
+However, we may do the following:
+
+- Add additional optional inputs
+- Add additional values to the output
+- Change conditions for specific error types
+- Add new variants to enum-like output values (for example, streaming event types)
+
+Generally, if you are using the API as documented in this reference, we will not break your usage.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/versioning#version-history)
+
+Version history
+
+We always recommend using the latest API version whenever possible. Previous versions are considered deprecated and may be unavailable for new users.
+
+- `2023-06-01`
+    - New format for [streaming](https://docs.anthropic.com/en/api/streaming) server-sent events (SSE):
+        - Completions are incremental. For example, `" Hello"`, `" my"`, `" name"`, `" is"`, `" Claude."` instead of `" Hello"`, `" Hello my"`, `" Hello my name"`, `" Hello my name is"`, `" Hello my name is Claude."`.
+        - All events are [named events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent%5Fevents/Using%5Fserver-sent%5Fevents#named%5Fevents), rather than [data-only events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent%5Fevents/Using%5Fserver-sent%5Fevents#data-only%5Fmessages).
+        - Removed unnecessary `data: [DONE]` event.
+    - Removed legacy `exception` and `truncated` values in responses.
+- `2023-01-01`: Initial release.
+
+---
+
+# Errors
+
+## 
+
+HTTP errors
+
+Our API follows a predictable HTTP error code format:
+
+- 400 - `invalid_request_error`: There was an issue with the format or content of your request. We may also use this error type for other 4XX status codes not listed below.
+- 401 - `authentication_error`: There’s an issue with your API key.
+- 403 - `permission_error`: Your API key does not have permission to use the specified resource.
+- 404 - `not_found_error`: The requested resource was not found.
+- 413 - `request_too_large`: Request exceeds the maximum allowed number of bytes.
+- 429 - `rate_limit_error`: Your account has hit a rate limit.
+- 500 - `api_error`: An unexpected error has occurred internal to Anthropic’s systems.
+- 529 - `overloaded_error`: Anthropic’s API is temporarily overloaded.
+
+When receiving a [streaming](https://docs.anthropic.com/en/api/streaming) response via SSE, it’s possible that an error can occur after returning a 200 response, in which case error handling wouldn’t follow these standard mechanisms.
+
+## 
+
+Error shapes
+
+Errors are always returned as JSON, with a top-level `error` object that always includes a `type` and `message` value. For example:
+
+JSON
+
+```JSON
+{
+  "type": "error",
+  "error": {
+    "type": "not_found_error",
+    "message": "The requested resource could not be found."
+  }
+}
+```
+
+In accordance with our [versioning](https://docs.anthropic.com/en/api/versioning) policy, we may expand the values within these objects, and it is possible that the `type` values will grow over time.
+
+## 
+
+Request id
+
+Every API response includes a unique `request-id` header. This header contains a value such as `req_018EeWyXxfu5pfWkrYcMdjWG`. When contacting support about a specific request, please include this ID to help us quickly resolve your issue.
+
+---
+
+# Rate limits
+
+To mitigate against misuse and manage capacity on our API, we have implemented limits on how much an organization can use the Claude API.
+
+We have two types of limits:
+
+1. **Spend limits** set a maximum monthly cost an organization can incur for API usage.
+2. **Rate limits** set the maximum number of API requests an organization can make over a defined period of time.
+
+We enforce service-configured limits at the organization level, but you may also set user-configurable limits for your organization’s workspaces.
+
+## 
+
+
+About our limits
+
+- Limits are designed to prevent API abuse, while minimizing impact on common customer usage patterns.
+- Limits are defined by usage tier, where each tier is associated with a different set of spend and rate limits.
+- Your organization will increase tiers automatically as you reach certain thresholds while using the API. Limits are set at the organization level. You can see your organization’s limits in the [Limits page](https://console.anthropic.com/settings/limits) in the [Anthropic Console](https://console.anthropic.com/).
+- You may hit rate limits over shorter time intervals. For instance, a rate of 60 requests per minute (RPM) may be enforced as 1 request per second. Short bursts of requests at a high volume can surpass the rate limit and result in rate limit errors.
+- The limits outlined below are our standard limits. If you’re seeking higher, custom limits, contact sales through the [Anthropic Console](https://console.anthropic.com/settings/limits).
+- We use the [token bucket algorithm](https://en.wikipedia.org/wiki/Token_bucket) to do rate limiting.
+- All limits described here represent maximum allowed usage, not guaranteed minimums. These limits are designed to prevent overuse and ensure fair distribution of resources among users.
+
+## 
+
+Spend limits
+
+Each usage tier has a limit on how much you can spend on the API each calendar month. Once you reach the spend limit of your tier, until you qualify for the next tier, you will have to wait until the next month to be able to use the API again.
+
+To qualify for the next tier, you must meet a deposit requirement and a mandatory wait period. Higher tiers require longer wait periods. Note, to minimize the risk of overfunding your account, you cannot deposit more than your monthly spend limit.
+
+### 
+
+Requirements to advance tier
+
+|Usage Tier|Credit Purchase|Wait After First Purchase|Max Usage per Month|
+|---|---|---|---|
+|Tier 1|$5|0 days|$100|
+|Tier 2|$40|7 days|$500|
+|Tier 3|$200|7 days|$1,000|
+|Tier 4|$400|14 days|$5,000|
+|Monthly Invoicing|N/A|N/A|N/A|
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/rate-limits#rate-limits)
+
+Rate limits
+
+Our rate limits are currently measured in requests per minute, tokens per minute, and tokens per day for each model class. If you exceed any of the rate limits you will get a [429 error](https://docs.anthropic.com/en/api/errors). Click on the rate limit tier to view relevant rate limits.
+
+Rate limits are tracked per model, therefore models within the same tier do not share a rate limit.
+
+- Tier 1
+- Tier 2
+- Tier 3
+- Tier 4
+- Custom
+
+|Model|Maximum Requests per minute (RPM)|Maximum Tokens per minute (TPM)|Maximum Tokens per day (TPD)|
+|---|---|---|---|
+|Claude 3.5 Sonnet  <br>2024-10-22|50|40,000|1,000,000|
+|Claude 3.5 Sonnet  <br>2024-06-20|50|40,000|1,000,000|
+|Claude 3 Opus|50|20,000|1,000,000|
+|Claude 3 Sonnet|50|40,000|1,000,000|
+|Claude 3 Haiku|50|50,000|5,000,000|
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/rate-limits#setting-lower-limits-for-workspaces)
+
+Setting lower limits for Workspaces
+
+In order to protect Workspaces in your Organization from potential overuse, you can set custom spend and rate limits per Workspace.
+
+Example: If your Organization’s limit is 80,000 tokens per minute, you might limit one Workspace to 30,000 tokens per minute. This protects other Workspaces from potential overuse and ensures a more equitable distribution of resources across your Organization. The remaining 50,000 tokens per minute (or more, if that Workspace doesn’t use the limit) are then available for other Workspaces to use.
+
+Note:
+
+- You can’t set limits on the default Workspace.
+- If not set, Workspace limits match the Organization’s limit.
+- Organization-wide limits always apply, even if Workspace limits add up to more.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/rate-limits#response-headers)
+
+Response headers
+
+The API response includes headers that show you the rate limit enforced, current usage, and when the limit will be reset.
+
+The following headers are returned:
+
+|Header|Description|
+|---|---|
+|`anthropic-ratelimit-requests-limit`|The maximum number of requests allowed within any rate limit period.|
+|`anthropic-ratelimit-requests-remaining`|The number of requests remaining before being rate limited.|
+|`anthropic-ratelimit-requests-reset`|The time when the request rate limit will reset, provided in RFC 3339 format.|
+|`anthropic-ratelimit-tokens-limit`|The maximum number of tokens allowed within the any rate limit period.|
+|`anthropic-ratelimit-tokens-remaining`|The number of tokens remaining (rounded to the nearest thousand) before being rate limited.|
+|`anthropic-ratelimit-tokens-reset`|The time when the token rate limit will reset, provided in RFC 3339 format.|
+|`retry-after`|The number of seconds until you can retry the request.|
+
+The rate limit headers display the values for the most restrictive limit currently in effect. For example, if you have exceeded the per-minute token limit but not the daily token limit, the headers will contain the per-minute token rate limit values. This approach ensures that you have visibility into the most relevant constraint on your current API usage.
+
+---
+
+# Client SDKs
+
+We provide libraries in Python and TypeScript that make it easier to work with the Anthropic API.
+
+> Additional configuration is needed to use Anthropic’s Client SDKs through a partner platform. If you are using Amazon Bedrock, see [this guide](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock); if you are using Google Cloud Vertex AI, see [this guide](https://docs.anthropic.com/en/api/claude-on-vertex-ai).
+
+## 
+
+Python
+
+[Python library GitHub repo](https://github.com/anthropics/anthropic-sdk-python)
+
+Example:
+
+Python
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic(
+    # defaults to os.environ.get("ANTHROPIC_API_KEY")
+    api_key="my_api_key",
+)
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, Claude"}
+    ]
+)
+print(message.content)
+```
+
+---
+
+## 
+
+TypeScript
+
+[TypeScript library GitHub repo](https://github.com/anthropics/anthropic-sdk-typescript)
+
+While this library is in TypeScript, it can also be used in JavaScript libraries.
+
+Example:
+
+TypeScript
+
+```TypeScript
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: 'my_api_key', // defaults to process.env["ANTHROPIC_API_KEY"]
+});
+
+const msg = await anthropic.messages.create({
+  model: "claude-3-5-sonnet-20241022",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello, Claude" }],
+});
+console.log(msg);
+```
+
+---
+
+# Create a Message
+
+Send a structured list of input messages with text and/or image content, and the model will generate the next message in the conversation.
+
+The Messages API can be used for either single queries or stateless multi-turn conversations.
+
+POST
+
+/
+
+v1
+
+/
+
+messages
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Body
+
+application/json
+
+model
+
+string
+
+required
+
+The model that will complete your prompt.
+
+See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+
+messages
+
+object[]
+
+required
+
+Input messages.
+
+Our models are trained to operate on alternating `user` and `assistant` conversational turns. When creating a new `Message`, you specify the prior conversational turns with the `messages` parameter, and the model then generates the next `Message` in the conversation. Consecutive `user` or `assistant` turns in your request will be combined into a single turn.
+
+Each input message must be an object with a `role` and `content`. You can specify a single `user`-role message, or you can include multiple `user` and `assistant` messages.
+
+If the final message uses the `assistant` role, the response content will continue immediately from the content in that message. This can be used to constrain part of the model's response.
+
+Example with a single `user` message:
+
+```json
+[{"role": "user", "content": "Hello, Claude"}]
+```
+
+Example with multiple conversational turns:
+
+```json
+[
+  {"role": "user", "content": "Hello there."},
+  {"role": "assistant", "content": "Hi, I'm Claude. How can I help you?"},
+  {"role": "user", "content": "Can you explain LLMs in plain English?"},
+]
+```
+
+Example with a partially-filled response from Claude:
+
+```json
+[
+  {"role": "user", "content": "What's the Greek name for Sun? (A) Sol (B) Helios (C) Sun"},
+  {"role": "assistant", "content": "The best answer is ("},
+]
+```
+
+Each input message `content` may be either a single `string` or an array of content blocks, where each block has a specific `type`. Using a `string` for `content` is shorthand for an array of one content block of type `"text"`. The following input messages are equivalent:
+
+```json
+{"role": "user", "content": "Hello, Claude"}
+```
+
+```json
+{"role": "user", "content": [{"type": "text", "text": "Hello, Claude"}]}
+```
+
+Starting with Claude 3 models, you can also send image content blocks:
+
+```json
+{"role": "user", "content": [
+  {
+    "type": "image",
+    "source": {
+      "type": "base64",
+      "media_type": "image/jpeg",
+      "data": "/9j/4AAQSkZJRg...",
+    }
+  },
+  {"type": "text", "text": "What is in this image?"}
+]}
+```
+
+We currently support the `base64` source type for images, and the `image/jpeg`, `image/png`, `image/gif`, and `image/webp` media types.
+
+See [examples](https://docs.anthropic.com/en/api/messages-examples#vision) for more input examples.
+
+Note that if you want to include a [system prompt](https://docs.anthropic.com/en/docs/system-prompts), you can use the top-level `system` parameter — there is no `"system"` role for input messages in the Messages API.
+
+Show child attributes
+
+max_tokens
+
+integer
+
+required
+
+The maximum number of tokens to generate before stopping.
+
+Note that our models may stop _before_ reaching this maximum. This parameter only specifies the absolute maximum number of tokens to generate.
+
+Different models have different maximum values for this parameter. See [models](https://docs.anthropic.com/en/docs/models-overview) for details.
+
+metadata
+
+object
+
+An object describing metadata about the request.
+
+Show child attributes
+
+stop_sequences
+
+string[]
+
+Custom text sequences that will cause the model to stop generating.
+
+Our models will normally stop when they have naturally completed their turn, which will result in a response `stop_reason` of `"end_turn"`.
+
+If you want the model to stop generating when it encounters custom strings of text, you can use the `stop_sequences` parameter. If the model encounters one of the custom sequences, the response `stop_reason` value will be `"stop_sequence"` and the response `stop_sequence` value will contain the matched stop sequence.
+
+stream
+
+boolean
+
+Whether to incrementally stream the response using server-sent events.
+
+See [streaming](https://docs.anthropic.com/en/api/messages-streaming) for details.
+
+system
+
+stringobject[]
+
+System prompt.
+
+A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role. See our [guide to system prompts](https://docs.anthropic.com/en/docs/system-prompts).
+
+temperature
+
+number
+
+Amount of randomness injected into the response.
+
+Defaults to `1.0`. Ranges from `0.0` to `1.0`. Use `temperature` closer to `0.0` for analytical / multiple choice, and closer to `1.0` for creative and generative tasks.
+
+Note that even with `temperature` of `0.0`, the results will not be fully deterministic.
+
+tool_choice
+
+object
+
+How the model should use the provided tools. The model can use a specific tool, any available tool, or decide by itself.
+
+- Auto
+- Any
+- Tool
+
+Show child attributes
+
+tools
+
+object[]
+
+Definitions of tools that the model may use.
+
+If you include `tools` in your API request, the model may return `tool_use` content blocks that represent the model's use of those tools. You can then run those tools using the tool input generated by the model and then optionally return results back to the model using `tool_result` content blocks.
+
+Each tool definition includes:
+
+- `name`: Name of the tool.
+- `description`: Optional, but strongly-recommended description of the tool.
+- `input_schema`: [JSON schema](https://json-schema.org/) for the tool `input` shape that the model will produce in `tool_use` output content blocks.
+
+For example, if you defined `tools` as:
+
+```json
+[
+  {
+    "name": "get_stock_price",
+    "description": "Get the current stock price for a given ticker symbol.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "The stock ticker symbol, e.g. AAPL for Apple Inc."
+        }
+      },
+      "required": ["ticker"]
+    }
+  }
+]
+```
+
+And then asked the model "What's the S&P 500 at today?", the model might produce `tool_use` content blocks in the response like this:
+
+```json
+[
+  {
+    "type": "tool_use",
+    "id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "name": "get_stock_price",
+    "input": { "ticker": "^GSPC" }
+  }
+]
+```
+
+You might then run your `get_stock_price` tool with `{"ticker": "^GSPC"}` as an input, and return the following back to the model in a subsequent `user` message:
+
+```json
+[
+  {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "content": "259.75 USD"
+  }
+]
+```
+
+Tools can be used for workflows that include running client-side tools and functions, or more generally whenever you want the model to produce a particular JSON structure of output.
+
+See our [guide](https://docs.anthropic.com/en/docs/tool-use) for more details.
+
+- Tool
+- ComputerUseTool_20241022
+- BashTool_20241022
+- TextEditor_20241022
+
+Show child attributes
+
+top_k
+
+integer
+
+Only sample from the top K options for each subsequent token.
+
+Used to remove "long tail" low probability responses.
+
+Recommended for advanced use cases only. You usually only need to use `temperature`.
+
+top_p
+
+number
+
+Use nucleus sampling.
+
+In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by `top_p`. You should either alter `temperature` or `top_p`, but not both.
+
+Recommended for advanced use cases only. You usually only need to use `temperature`.
+
+### Response
+
+200 - application/json
+
+id
+
+string
+
+required
+
+Unique object identifier.
+
+The format and length of IDs may change over time.
+
+type
+
+enum<string>
+
+default: messagerequired
+
+Object type.
+
+For Messages, this is always `"message"`.
+
+Available options:
+
+`message`
+
+role
+
+enum<string>
+
+default: assistantrequired
+
+Conversational role of the generated message.
+
+This will always be `"assistant"`.
+
+Available options:
+
+`assistant`
+
+content
+
+object[]
+
+required
+
+Content generated by the model.
+
+This is an array of content blocks, each of which has a `type` that determines its shape.
+
+Example:
+
+```json
+[{"type": "text", "text": "Hi, I'm Claude."}]
+```
+
+If the request input `messages` ended with an `assistant` turn, then the response `content` will continue directly from that last turn. You can use this to constrain the model's output.
+
+For example, if the input `messages` were:
+
+```json
+[
+  {"role": "user", "content": "What's the Greek name for Sun? (A) Sol (B) Helios (C) Sun"},
+  {"role": "assistant", "content": "The best answer is ("}
+]
+```
+
+Then the response `content` might be:
+
+```json
+[{"type": "text", "text": "B)"}]
+```
+
+- Text
+- Tool Use
+
+Show child attributes
+
+model
+
+string
+
+required
+
+The model that handled the request.
+
+stop_reason
+
+enum<string> | null
+
+required
+
+The reason that we stopped.
+
+This may be one the following values:
+
+- `"end_turn"`: the model reached a natural stopping point
+- `"max_tokens"`: we exceeded the requested `max_tokens` or the model's maximum
+- `"stop_sequence"`: one of your provided custom `stop_sequences` was generated
+- `"tool_use"`: the model invoked one or more tools
+
+In non-streaming mode this value is always non-null. In streaming mode, it is null in the `message_start` event and non-null otherwise.
+
+Available options:
+
+`end_turn`,
+
+`max_tokens`,
+
+`stop_sequence`,
+
+`tool_use`
+
+stop_sequence
+
+string | null
+
+required
+
+Which custom stop sequence was generated, if any.
+
+This value will be a non-null string if one of your custom stop sequences was generated.
+
+usage
+
+object
+
+required
+
+Billing and rate-limit usage.
+
+Anthropic's API bills and rate-limits by token counts, as tokens represent the underlying cost to our systems.
+
+Under the hood, the API transforms requests into a format suitable for the model. The model's output then goes through a parsing stage before becoming an API response. As a result, the token counts in `usage` will not match one-to-one with the exact visible content of an API request or response.
+
+For example, `output_tokens` will be non-zero, even for an empty string response from Claude.
+
+Show child attributes
+
+[Getting help](https://docs.anthropic.com/en/api/getting-help)[Count Message tokens (beta)](https://docs.anthropic.com/en/api/messages-count-tokens)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, world"}
+    ]
+}'
+```
+
+200
+
+4XX
+
+```
+{
+  "content": [
+    {
+      "text": "Hi! My name is Claude.",
+      "type": "text"
+    }
+  ],
+  "id": "msg_013Zva2CMHLNnXjNJJKqJ2EF",
+  "model": "claude-3-5-sonnet-20241022",
+  "role": "assistant",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+    "input_tokens": 2095,
+    "output_tokens": 503
+  }
+}
+```
+
+---
+Messages
+
+# Count Message tokens (beta)
+
+Count the number of tokens in a Message.
+
+The Token Count API can be used to count the number of tokens in a Message, including tools, images, and documents, without creating it.
+
+POST
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+count_tokens
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `token-counting-2024-11-01`
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Body
+
+application/json
+
+tool_choice
+
+object
+
+How the model should use the provided tools. The model can use a specific tool, any available tool, or decide by itself.
+
+- Tool Choice
+- Tool Choice
+- Tool Choice
+
+Show child attributes
+
+tools
+
+object[]
+
+Definitions of tools that the model may use.
+
+If you include `tools` in your API request, the model may return `tool_use` content blocks that represent the model's use of those tools. You can then run those tools using the tool input generated by the model and then optionally return results back to the model using `tool_result` content blocks.
+
+Each tool definition includes:
+
+- `name`: Name of the tool.
+- `description`: Optional, but strongly-recommended description of the tool.
+- `input_schema`: [JSON schema](https://json-schema.org/) for the tool `input` shape that the model will produce in `tool_use` output content blocks.
+
+For example, if you defined `tools` as:
+
+```json
+[
+  {
+    "name": "get_stock_price",
+    "description": "Get the current stock price for a given ticker symbol.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "The stock ticker symbol, e.g. AAPL for Apple Inc."
+        }
+      },
+      "required": ["ticker"]
+    }
+  }
+]
+```
+
+And then asked the model "What's the S&P 500 at today?", the model might produce `tool_use` content blocks in the response like this:
+
+```json
+[
+  {
+    "type": "tool_use",
+    "id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "name": "get_stock_price",
+    "input": { "ticker": "^GSPC" }
+  }
+]
+```
+
+You might then run your `get_stock_price` tool with `{"ticker": "^GSPC"}` as an input, and return the following back to the model in a subsequent `user` message:
+
+```json
+[
+  {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "content": "259.75 USD"
+  }
+]
+```
+
+Tools can be used for workflows that include running client-side tools and functions, or more generally whenever you want the model to produce a particular JSON structure of output.
+
+See our [guide](https://docs.anthropic.com/en/docs/tool-use) for more details.
+
+- Tool
+- ComputerUseTool_20241022
+- BashTool_20241022
+- TextEditor_20241022
+
+Show child attributes
+
+messages
+
+object[]
+
+required
+
+Input messages.
+
+Our models are trained to operate on alternating `user` and `assistant` conversational turns. When creating a new `Message`, you specify the prior conversational turns with the `messages` parameter, and the model then generates the next `Message` in the conversation. Consecutive `user` or `assistant` turns in your request will be combined into a single turn.
+
+Each input message must be an object with a `role` and `content`. You can specify a single `user`-role message, or you can include multiple `user` and `assistant` messages.
+
+If the final message uses the `assistant` role, the response content will continue immediately from the content in that message. This can be used to constrain part of the model's response.
+
+Example with a single `user` message:
+
+```json
+[{"role": "user", "content": "Hello, Claude"}]
+```
+
+Example with multiple conversational turns:
+
+```json
+[
+  {"role": "user", "content": "Hello there."},
+  {"role": "assistant", "content": "Hi, I'm Claude. How can I help you?"},
+  {"role": "user", "content": "Can you explain LLMs in plain English?"},
+]
+```
+
+Example with a partially-filled response from Claude:
+
+```json
+[
+  {"role": "user", "content": "What's the Greek name for Sun? (A) Sol (B) Helios (C) Sun"},
+  {"role": "assistant", "content": "The best answer is ("},
+]
+```
+
+Each input message `content` may be either a single `string` or an array of content blocks, where each block has a specific `type`. Using a `string` for `content` is shorthand for an array of one content block of type `"text"`. The following input messages are equivalent:
+
+```json
+{"role": "user", "content": "Hello, Claude"}
+```
+
+```json
+{"role": "user", "content": [{"type": "text", "text": "Hello, Claude"}]}
+```
+
+Starting with Claude 3 models, you can also send image content blocks:
+
+```json
+{"role": "user", "content": [
+  {
+    "type": "image",
+    "source": {
+      "type": "base64",
+      "media_type": "image/jpeg",
+      "data": "/9j/4AAQSkZJRg...",
+    }
+  },
+  {"type": "text", "text": "What is in this image?"}
+]}
+```
+
+We currently support the `base64` source type for images, and the `image/jpeg`, `image/png`, `image/gif`, and `image/webp` media types.
+
+See [examples](https://docs.anthropic.com/en/api/messages-examples#vision) for more input examples.
+
+Note that if you want to include a [system prompt](https://docs.anthropic.com/en/docs/system-prompts), you can use the top-level `system` parameter — there is no `"system"` role for input messages in the Messages API.
+
+Show child attributes
+
+system
+
+stringobject[]
+
+System prompt.
+
+A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role. See our [guide to system prompts](https://docs.anthropic.com/en/docs/system-prompts).
+
+model
+
+string
+
+required
+
+The model that will complete your prompt.
+
+See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+
+#### Response
+
+200 - application/json
+
+input_tokens
+
+integer
+
+required
+
+The total number of tokens across the provided list of messages, system prompt, and tools.
+
+[Create a Message](https://docs.anthropic.com/en/api/messages)[Streaming Messages](https://docs.anthropic.com/en/api/messages-streaming)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: token-counting-2024-11-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "messages": [
+        {"role": "user", "content": "Hello, world"}
+    ]
+}'
+```
+
+200
+
+4XX
+
+```
+{
+  "input_tokens": 2095
+}
+```
+
+Count Message tokens (beta) - Anthropic
+
+Ask AI
+
+![AI chat avatar](https://storage.googleapis.com/organization-image-assets/anthropic-botAvatarDarkSrcUrl-1715877068491.svg)
+
+---
+
+# Streaming Messages
+
+When creating a Message, you can set `"stream": true` to incrementally stream the response using [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent%5Fevents/Using%5Fserver-sent%5Fevents) (SSE).
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#streaming-with-sdks)
+
+Streaming with SDKs
+
+Our [Python](https://github.com/anthropics/anthropic-sdk-python) and [TypeScript](https://github.com/anthropics/anthropic-sdk-typescript) SDKs offer multiple ways of streaming. The Python SDK allows both sync and async streams. See the documentation in each SDK for details.
+
+Python
+
+TypeScript
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic()
+
+with client.messages.stream(
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+    model="claude-3-5-sonnet-20241022",
+) as stream:
+  for text in stream.text_stream:
+      print(text, end="", flush=True)
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#event-types)
+
+Event types
+
+Each server-sent event includes a named event type and associated JSON data. Each event will use an SSE event name (e.g. `event: message_stop`), and include the matching event `type` in its data.
+
+Each stream uses the following event flow:
+
+1. `message_start`: contains a `Message` object with empty `content`.
+2. A series of content blocks, each of which have a `content_block_start`, one or more `content_block_delta` events, and a `content_block_stop` event. Each content block will have an `index` that corresponds to its index in the final Message `content` array.
+3. One or more `message_delta` events, indicating top-level changes to the final `Message` object.
+4. A final `message_stop` event.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#ping-events)
+
+Ping events
+
+Event streams may also include any number of `ping` events.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#error-events)
+
+Error events
+
+We may occasionally send [errors](https://docs.anthropic.com/en/api/errors) in the event stream. For example, during periods of high usage, you may receive an `overloaded_error`, which would normally correspond to an HTTP 529 in a non-streaming context:
+
+Example error
+
+```json
+event: error
+data: {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#other-events)
+
+Other events
+
+In accordance with our [versioning policy](https://docs.anthropic.com/en/api/versioning), we may add new event types, and your code should handle unknown event types gracefully.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#delta-types)
+
+Delta types
+
+Each `content_block_delta` event contains a `delta` of a type that updates the `content` block at a given `index`.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#text-delta)
+
+Text delta
+
+A `text` content block delta looks like:
+
+Text delta
+
+```JSON
+event: content_block_delta
+data: {"type": "content_block_delta","index": 0,"delta": {"type": "text_delta", "text": "ello frien"}}
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#input-json-delta)
+
+Input JSON delta
+
+The deltas for `tool_use` content blocks correspond to updates for the `input` field of the block. To support maximum granularity, the deltas are _partial JSON strings_, whereas the final `tool_use.input` is always an _object_.
+
+You can accumulate the string deltas and parse the JSON once you receive a `content_block_stop` event, by using a library like [Pydantic](https://docs.pydantic.dev/latest/concepts/json/#partial-json-parsing) to do partial JSON parsing, or by using our [SDKs](https://docs.anthropic.com/en/api/client-sdks), which provide helpers to access parsed incremental values.
+
+A `tool_use` content block delta looks like:
+
+Input JSON delta
+
+```JSON
+event: content_block_delta
+data: {"type": "content_block_delta","index": 1,"delta": {"type": "input_json_delta","partial_json": "{\"location\": \"San Fra"}}}
+```
+
+Note: Our current models only support emitting one complete key and value property from `input` at a time. As such, when using tools, there may be delays between streaming events while the model is working. Once an `input` key and value are accumulated, we emit them as multiple `content_block_delta` events with chunked partial json so that the format can automatically support finer granularity in future models.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#raw-http-stream-response)
+
+Raw HTTP Stream response
+
+We strongly recommend that use our [client SDKs](https://docs.anthropic.com/en/api/client-sdks) when using streaming mode. However, if you are building a direct API integration, you will need to handle these events yourself.
+
+A stream response is comprised of:
+
+1. A `message_start` event
+2. Potentially multiple content blocks, each of which contains: a. A `content_block_start` event b. Potentially multiple `content_block_delta` events c. A `content_block_stop` event
+3. A `message_delta` event
+4. A `message_stop` event
+
+There may be `ping` events dispersed throughout the response as well. See [Event types](https://docs.anthropic.com/en/api/messages-streaming#event-types) for more details on the format.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#basic-streaming-request)
+
+Basic streaming request
+
+Request
+
+```bash
+curl https://api.anthropic.com/v1/messages \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --data \
+'{
+  "model": "claude-3-5-sonnet-20241022",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "max_tokens": 256,
+  "stream": true
+}'
+```
+
+Response
+
+```json
+event: message_start
+data: {"type": "message_start", "message": {"id": "msg_1nZdL29xx5MUA1yADyHTEsnR8uuvGzszyY", "type": "message", "role": "assistant", "content": [], "model": "claude-3-5-sonnet-20241022", "stop_reason": null, "stop_sequence": null, "usage": {"input_tokens": 25, "output_tokens": 1}}}
+
+event: content_block_start
+data: {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hello"}}
+
+event: content_block_delta
+data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "!"}}
+
+event: content_block_stop
+data: {"type": "content_block_stop", "index": 0}
+
+event: message_delta
+data: {"type": "message_delta", "delta": {"stop_reason": "end_turn", "stop_sequence":null}, "usage": {"output_tokens": 15}}
+
+event: message_stop
+data: {"type": "message_stop"}
+
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
+
+Streaming request with tool use
+
+In this request, we ask Claude to use a tool to tell us the weather.
+
+Request
+
+```bash
+  curl https://api.anthropic.com/v1/messages \
+    -H "content-type: application/json" \
+    -H "x-api-key: $ANTHROPIC_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -d '{
+      "model": "claude-3-5-sonnet-20241022",
+      "max_tokens": 1024,
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get the current weather in a given location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              }
+            },
+            "required": ["location"]
+          }
+        }
+      ],
+      "tool_choice": {"type": "any"},
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather like in San Francisco?"
+        }
+      ],
+      "stream": true
+    }'
+```
+
+Response
+
+```json
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_014p7gG3wDgGV9EUtLvnow3U","type":"message","role":"assistant","model":"claude-3-haiku-20240307","stop_sequence":null,"usage":{"input_tokens":472,"output_tokens":2},"content":[],"stop_reason":null}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Okay"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" let"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" check"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" weather"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" for"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" San"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Francisco"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" CA"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01T1x1fJ34qAmk2tNTrN7Up6","name":"get_weather","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"location\":"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":" \"San"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":" Francisc"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"o,"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":" CA\""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":", "}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"unit\": \"fah"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"renheit\"}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":89}}
+
+event: message_stop
+data: {"type":"message_stop"}
+```
+
+---
+
+# Migrating from Text Completions
+
+Migrating from Text Completions to Messages
+
+When migrating from from [Text Completions](https://docs.anthropic.com/en/api/complete) to [Messages](https://docs.anthropic.com/en/api/messages), consider the following changes.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#inputs-and-outputs)
+
+Inputs and outputs
+
+The largest change between Text Completions and the Messages is the way in which you specify model inputs and receive outputs from the model.
+
+With Text Completions, inputs are raw strings:
+
+Python
+
+```Python
+prompt = "\n\nHuman: Hello there\n\nAssistant: Hi, I'm Claude. How can I help?\n\nHuman: Can you explain Glycolysis to me?\n\nAssistant:"
+```
+
+With Messages, you specify a list of input messages instead of a raw prompt:
+
+Shorthand
+
+Expanded
+
+```json
+messages = [
+  {"role": "user", "content": "Hello there."},
+  {"role": "assistant", "content": "Hi, I'm Claude. How can I help?"},
+  {"role": "user", "content": "Can you explain Glycolysis to me?"},
+]
+```
+
+Each input message has a `role` and `content`.
+
+**Role names**
+
+The Text Completions API expects alternating `\n\nHuman:` and `\n\nAssistant:` turns, but the Messages API expects `user` and `assistant` roles. You may see documentation referring to either “human” or “user” turns. These refer to the same role, and will be “user” going forward.
+
+With Text Completions, the model’s generated text is returned in the `completion` values of the response:
+
+Python
+
+```Python
+>>> response = anthropic.completions.create(...)
+>>> response.completion
+" Hi, I'm Claude"
+```
+
+With Messages, the response is the `content` value, which is a list of content blocks:
+
+Python
+
+```Python
+>>> response = anthropic.messages.create(...)
+>>> response.content
+[{"type": "text", "text": "Hi, I'm Claude"}]
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#putting-words-in-claudes-mouth)
+
+Putting words in Claude’s mouth
+
+With Text Completions, you can pre-fill part of Claude’s response:
+
+Python
+
+```Python
+prompt = "\n\nHuman: Hello\n\nAssistant: Hello, my name is"
+```
+
+With Messages, you can achieve the same result by making the last input message have the `assistant` role:
+
+Python
+
+```Python
+messages = [
+  {"role": "human", "content": "Hello"},
+  {"role": "assistant", "content": "Hello, my name is"},
+]
+```
+
+When doing so, response `content` will continue from the last input message `content`:
+
+JSON
+
+```JSON
+{
+  "role": "assistant",
+  "content": [{"type": "text", "text": " Claude. How can I assist you today?" }],
+  ...
+}
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#system-prompt)
+
+System prompt
+
+With Text Completions, the [system prompt](https://docs.anthropic.com/en/docs/system-prompts) is specified by adding text before the first `\n\nHuman:` turn:
+
+Python
+
+```Python
+prompt = "Today is January 1, 2024.\n\nHuman: Hello, Claude\n\nAssistant:"
+```
+
+With Messages, you specify the system prompt with the `system` parameter:
+
+Python
+
+```Python
+anthropic.Anthropic().messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    system="Today is January 1, 2024.", # <-- system prompt
+    messages=[
+        {"role": "user", "content": "Hello, Claude"}
+    ]
+)
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#model-names)
+
+Model names
+
+The Messages API requires that you specify the full model version (e.g. `claude-3-opus-20240229`).
+
+We previously supported specifying only the major version number (e.g. `claude-2`), which resulted in automatic upgrades to minor versions. However, we no longer recommend this integration pattern, and Messages do not support it.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#stop-reason)
+
+Stop reason
+
+Text Completions always have a `stop_reason` of either:
+
+- `"stop_sequence"`: The model either ended its turn naturally, or one of your custom stop sequences was generated.
+- `"max_tokens"`: Either the model generated your specified `max_tokens` of content, or it reached its [absolute maximum](https://docs.anthropic.com/en/docs/models-overview#model-comparison).
+
+Messages have a `stop_reason` of one of the following values:
+
+- `"end_turn"`: The conversational turn ended naturally.
+- `"stop_sequence"`: One of your specified custom stop sequences was generated.
+- `"max_tokens"`: (unchanged)
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#specifying-max-tokens)
+
+Specifying max tokens
+
+- Text Completions: `max_tokens_to_sample` parameter. No validation, but capped values per-model.
+- Messages: `max_tokens` parameter. If passing a value higher than the model supports, returns a validation error.
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/migrating-from-text-completions-to-messages#streaming-format)
+
+Streaming format
+
+When using `"stream": true` in with Text Completions, the response included any of `completion`, `ping`, and `error` server-sent-events. See [Text Completions streaming](https://anthropic.readme.io/claude/reference/streaming) for details.
+
+Messages can contain multiple content blocks of varying types, and so its streaming format is somewhat more complex. See [Messages streaming](https://anthropic.readme.io/claude/reference/messages-streaming) for details.
+
+
+
+---
+# Messages examples
+
+Request and response examples for the Messages API
+
+See the [API reference](https://docs.anthropic.com/en/api/messages) for full documentation on available parameters.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-examples#basic-request-and-response)
+
+Basic request and response
+
+Shell
+
+Python
+
+TypeScript
+
+```bash
+#!/bin/sh
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, Claude"}
+    ]
+}'
+```
+
+JSON
+
+```JSON
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello!"
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 6
+  }
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-examples#multiple-conversational-turns)
+
+Multiple conversational turns
+
+The Messages API is stateless, which means that you always send the full conversational history to the API. You can use this pattern to build up a conversation over time. Earlier conversational turns don’t necessarily need to actually originate from Claude — you can use synthetic `assistant` messages.
+
+Shell
+
+```bash
+#!/bin/sh
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, Claude"},
+        {"role": "assistant", "content": "Hello!"},
+        {"role": "user", "content": "Can you describe LLMs to me?"}
+
+    ]
+}'
+```
+
+Python
+
+```Python
+import anthropic
+
+message = anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, Claude"},
+        {"role": "assistant", "content": "Hello!"},
+        {"role": "user", "content": "Can you describe LLMs to me?"}
+    ],
+)
+print(message)
+
+```
+
+TypeScript
+
+```TypeScript
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+await anthropic.messages.create({
+  model: 'claude-3-5-sonnet-20241022',
+  max_tokens: 1024,
+  messages: [
+    {"role": "user", "content": "Hello, Claude"},
+    {"role": "assistant", "content": "Hello!"},
+    {"role": "user", "content": "Can you describe LLMs to me?"}
+  ]
+});
+```
+
+JSON
+
+```JSON
+{
+    "id": "msg_018gCsTGsXkYJVqYPxTgDHBU",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+        {
+            "type": "text",
+            "text": "Sure, I'd be happy to provide..."
+        }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 30,
+      "output_tokens": 309
+    }
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-examples#putting-words-in-claudes-mouth)
+
+Putting words in Claude’s mouth
+
+You can pre-fill part of Claude’s response in the last position of the input messages list. This can be used to shape Claude’s response. The example below uses `"max_tokens": 1` to get a single multiple choice answer from Claude.
+
+Shell
+
+Python
+
+TypeScript
+
+```bash
+#!/bin/sh
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1,
+    "messages": [
+        {"role": "user", "content": "What is latin for Ant? (A) Apoidea, (B) Rhopalocera, (C) Formicidae"},
+        {"role": "assistant", "content": "The answer is ("}
+    ]
+}'
+```
+
+JSON
+
+```JSON
+{
+  "id": "msg_01Q8Faay6S7QPTvEUUQARt7h",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "C"
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 42,
+    "output_tokens": 1
+  }
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-examples#vision)
+
+Vision
+
+Claude can read both text and images in requests. Currently, we support the `base64` source type for images, and the `image/jpeg`, `image/png`, `image/gif`, and `image/webp` media types. See our [vision guide](https://docs.anthropic.com/en/docs/vision) for more details.
+
+Shell
+
+Python
+
+TypeScript
+
+```bash
+#!/bin/sh
+
+IMAGE_URL="https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"
+IMAGE_MEDIA_TYPE="image/jpeg"
+IMAGE_BASE64=$(curl "$IMAGE_URL" | base64)
+
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": [
+            {"type": "image", "source": {
+                "type": "base64",
+                "media_type": "'$IMAGE_MEDIA_TYPE'",
+                "data": "'$IMAGE_BASE64'"
+            }},
+            {"type": "text", "text": "What is in the above image?"}
+        ]}
+    ]
+}'
+```
+
+JSON
+
+```JSON
+{
+  "id": "msg_01EcyWo6m4hyW8KHs2y2pei5",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "This image shows an ant, specifically a close-up view of an ant. The ant is shown in detail, with its distinct head, antennae, and legs clearly visible. The image is focused on capturing the intricate details and features of the ant, likely taken with a macro lens to get an extreme close-up perspective."
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1551,
+    "output_tokens": 71
+  }
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-examples#tool-use-json-mode-and-computer-use-beta)
+
+Tool use, JSON mode, and computer use (beta)
+
+See our [guide](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) for examples for how to use tools with the Messages API. See our [computer use (beta) guide](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) for examples of how to control desktop computer environments with the Messages API.
+											  
+	# Create a Message Batch (beta)
+
+Send a batch of Message creation requests.
+
+The Message Batches API can be used to process multiple Messages API requests at once. Once a Message Batch is created, it begins processing immediately. Batches can take up to 24 hours to complete.
+
+POST
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+batches
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `message-batches-2024-09-24`
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/creating-message-batches#feature-support)
+
+Feature Support
+
+The Message Batches API supports the following models: Claude 3 Haiku, Claude 3 Opus, and Claude 3.5 Sonnet. All features available in the Messages API, including beta features, are available through the Message Batches API.
+
+While in beta, batches may contain up to 10,000 requests and be up to 32 MB in total size.
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Body
+
+application/json
+
+requests
+
+object[]
+
+required
+
+List of requests for prompt completion. Each is an individual request to create a Message.
+
+Show child attributes
+
+#### Response
+
+200 - application/json
+
+id
+
+string
+
+required
+
+Unique object identifier.
+
+The format and length of IDs may change over time.
+
+type
+
+enum<string>
+
+default: message_batchrequired
+
+Object type.
+
+For Message Batches, this is always `"message_batch"`.
+
+Available options:
+
+`message_batch`
+
+processing_status
+
+enum<string>
+
+required
+
+Processing status of the Message Batch.
+
+Available options:
+
+`in_progress`,
+
+`canceling`,
+
+`ended`
+
+request_counts
+
+object
+
+required
+
+Tallies requests within the Message Batch, categorized by their status.
+
+Requests start as `processing` and move to one of the other statuses only once processing of the entire batch ends. The sum of all values always matches the total number of requests in the batch.
+
+Show child attributes
+
+ended_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which processing for the Message Batch ended. Specified only once processing ends.
+
+Processing ends when every request in a Message Batch has either succeeded, errored, canceled, or expired.
+
+created_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was created.
+
+expires_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch will expire and end processing, which is 24 hours after creation.
+
+archived_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was archived and its results became unavailable.
+
+cancel_initiated_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which cancellation was initiated for the Message Batch. Specified only if cancellation was initiated.
+
+results_url
+
+string | null
+
+required
+
+URL to a `.jsonl` file containing the results of the Message Batch requests. Specified only once processing ends.
+
+Results in the file are not guaranteed to be in the same order as requests. Use the `custom_id` field to match results to requests.
+
+[Messages examples](https://docs.anthropic.com/en/api/messages-examples)[Retrieve a Message Batch (beta)](https://docs.anthropic.com/en/api/retrieving-message-batches)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages/batches \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: message-batches-2024-09-24" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "requests": [
+        {
+            "custom_id": "my-first-request",
+            "params": {
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 1024,
+                "messages": [
+                    {"role": "user", "content": "Hello, world"}
+                ]
+            }
+        },
+        {
+            "custom_id": "my-second-request",
+            "params": {
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 1024,
+                "messages": [
+                    {"role": "user", "content": "Hi again, friend"}
+                ]
+            }
+        }
+    ]
+}'
+```
+
+200
+
+4XX
+
+```
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  "processing_status": "in_progress",
+  "request_counts": {
+    "processing": 100,
+    "succeeded": 50,
+    "errored": 30,
+    "canceled": 10,
+    "expired": 10
+  },
+  "ended_at": "2024-08-20T18:37:24.100435Z",
+  "created_at": "2024-08-20T18:37:24.100435Z",
+  "expires_at": "2024-08-20T18:37:24.100435Z",
+  "archived_at": "2024-08-20T18:37:24.100435Z",
+  "cancel_initiated_at": "2024-08-20T18:37:24.100435Z",
+  "results_url": "https://api.anthropic.com/v1/messages/batches/msgbatch_013Zva2CMHLNnXjNJJKqJ2EF/results"
+}
+```
+
+
+---
+
+# Retrieve a Message Batch (beta)
+
+This endpoint is idempotent and can be used to poll for Message Batch completion. To access the results of a Message Batch, make a request to the `results_url` field in the response.
+
+GET
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+batches
+
+/
+
+{message_batch_id}
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `message-batches-2024-09-24`
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Path Parameters
+
+message_batch_id
+
+string
+
+required
+
+ID of the Message Batch.
+
+#### Response
+
+200 - application/json
+
+id
+
+string
+
+required
+
+Unique object identifier.
+
+The format and length of IDs may change over time.
+
+type
+
+enum<string>
+
+default: message_batchrequired
+
+Object type.
+
+For Message Batches, this is always `"message_batch"`.
+
+Available options:
+
+`message_batch`
+
+processing_status
+
+enum<string>
+
+required
+
+Processing status of the Message Batch.
+
+Available options:
+
+`in_progress`,
+
+`canceling`,
+
+`ended`
+
+request_counts
+
+object
+
+required
+
+Tallies requests within the Message Batch, categorized by their status.
+
+Requests start as `processing` and move to one of the other statuses only once processing of the entire batch ends. The sum of all values always matches the total number of requests in the batch.
+
+Show child attributes
+
+ended_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which processing for the Message Batch ended. Specified only once processing ends.
+
+Processing ends when every request in a Message Batch has either succeeded, errored, canceled, or expired.
+
+created_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was created.
+
+expires_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch will expire and end processing, which is 24 hours after creation.
+
+archived_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was archived and its results became unavailable.
+
+cancel_initiated_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which cancellation was initiated for the Message Batch. Specified only if cancellation was initiated.
+
+results_url
+
+string | null
+
+required
+
+URL to a `.jsonl` file containing the results of the Message Batch requests. Specified only once processing ends.
+
+Results in the file are not guaranteed to be in the same order as requests. Use the `custom_id` field to match results to requests.
+
+[Create a Message Batch (beta)](https://docs.anthropic.com/en/api/creating-message-batches)[Retrieve Message Batch Results (beta)](https://docs.anthropic.com/en/api/retrieving-message-batch-results)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: message-batches-2024-09-24"
+```
+
+200
+
+4XX
+
+```
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  "processing_status": "in_progress",
+  "request_counts": {
+    "processing": 100,
+    "succeeded": 50,
+    "errored": 30,
+    "canceled": 10,
+    "expired": 10
+  },
+  "ended_at": "2024-08-20T18:37:24.100435Z",
+  "created_at": "2024-08-20T18:37:24.100435Z",
+  "expires_at": "2024-08-20T18:37:24.100435Z",
+  "archived_at": "2024-08-20T18:37:24.100435Z",
+  "cancel_initiated_at": "2024-08-20T18:37:24.100435Z",
+  "results_url": "https://api.anthropic.com/v1/messages/batches/msgbatch_013Zva2CMHLNnXjNJJKqJ2EF/results"
+}
+```
+---
+
+# Retrieve Message Batch Results (beta)
+
+Streams the results of a Message Batch as a `.jsonl` file.
+
+Each line in the file is a JSON object containing the result of a single request in the Message Batch. Results are not guaranteed to be in the same order as requests. Use the `custom_id` field to match results to requests.
+
+GET
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+batches
+
+/
+
+{message_batch_id}
+
+/
+
+results
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `message-batches-2024-09-24`
+
+The path for retrieving Message Batch results should be pulled from the batch’s `results_url`. This path should not be assumed and may change.
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Path Parameters
+
+message_batch_id
+
+string
+
+required
+
+ID of the Message Batch.
+
+#### Response
+
+200 - application/x-jsonl
+
+The response is of type `file`.
+
+[Retrieve a Message Batch (beta)](https://docs.anthropic.com/en/api/retrieving-message-batches)[List Message Batches (beta)](https://docs.anthropic.com/en/api/listing-message-batches)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d/results \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: message-batches-2024-09-24"
+```
+
+200
+
+4XX
+
+```
+This response does not have an example.
+```
+---
+# List Message Batches (beta)
+
+List all Message Batches within a Workspace. Most recently created batches are returned first.
+
+GET
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+batches
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `message-batches-2024-09-24`
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Query Parameters
+
+before_id
+
+string
+
+ID of the object to use as a cursor for pagination. When provided, returns the page of results immediately before this object.
+
+after_id
+
+string
+
+ID of the object to use as a cursor for pagination. When provided, returns the page of results immediately after this object.
+
+limit
+
+integer
+
+default: 20
+
+Number of items to return per page.
+
+Defaults to `20`. Ranges from `1` to `100`.
+
+#### Response
+
+200 - application/json
+
+data
+
+object[]
+
+required
+
+Show child attributes
+
+has_more
+
+boolean
+
+required
+
+Indicates if there are more results in the requested page direction.
+
+first_id
+
+string | null
+
+required
+
+First ID in the `data` list. Can be used as the `before_id` for the previous page.
+
+last_id
+
+string | null
+
+required
+
+Last ID in the `data` list. Can be used as the `after_id` for the next page.
+
+[Retrieve Message Batch Results (beta)](https://docs.anthropic.com/en/api/retrieving-message-batch-results)[Cancel a Message Batch (beta)](https://docs.anthropic.com/en/api/canceling-message-batches)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl https://api.anthropic.com/v1/messages/batches \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: message-batches-2024-09-24"
+```
+
+200
+
+4XX
+
+```
+{
+  "data": [
+    {
+      "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+      "type": "message_batch",
+      "processing_status": "in_progress",
+      "request_counts": {
+        "processing": 100,
+        "succeeded": 50,
+        "errored": 30,
+        "canceled": 10,
+        "expired": 10
+      },
+      "ended_at": "2024-08-20T18:37:24.100435Z",
+      "created_at": "2024-08-20T18:37:24.100435Z",
+      "expires_at": "2024-08-20T18:37:24.100435Z",
+      "archived_at": "2024-08-20T18:37:24.100435Z",
+      "cancel_initiated_at": "2024-08-20T18:37:24.100435Z",
+      "results_url": "https://api.anthropic.com/v1/messages/batches/msgbatch_013Zva2CMHLNnXjNJJKqJ2EF/results"
+    }
+  ],
+  "has_more": true,
+  "first_id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "last_id": "msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d"
+}
+```
+---
+# Cancel a Message Batch (beta)
+
+Batches may be canceled any time before processing ends. Once cancellation is initiated, the batch enters a `canceling` state, at which time the system may complete any in-progress, non-interruptible requests before finalizing cancellation.
+
+The number of canceled requests is specified in `request_counts`. To determine which requests were canceled, check the individual results within the batch. Note that cancellation may not result in any canceled requests if they were non-interruptible.
+
+POST
+
+/
+
+v1
+
+/
+
+messages
+
+/
+
+batches
+
+/
+
+{message_batch_id}
+
+/
+
+cancel
+
+While in beta, this endpoint requires passing the `anthropic-beta` header with value `message-batches-2024-09-24`
+
+#### Headers
+
+anthropic-beta
+
+string[]
+
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like `beta1,beta2` or specify the header multiple times for each beta.
+
+anthropic-version
+
+string
+
+required
+
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history [here](https://docs.anthropic.com/en/api/versioning).
+
+x-api-key
+
+string
+
+required
+
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the [Console](https://console.anthropic.com/settings/keys). Each key is scoped to a Workspace.
+
+#### Path Parameters
+
+message_batch_id
+
+string
+
+required
+
+ID of the Message Batch.
+
+#### Response
+
+200 - application/json
+
+id
+
+string
+
+required
+
+Unique object identifier.
+
+The format and length of IDs may change over time.
+
+type
+
+enum<string>
+
+default: message_batchrequired
+
+Object type.
+
+For Message Batches, this is always `"message_batch"`.
+
+Available options:
+
+`message_batch`
+
+processing_status
+
+enum<string>
+
+required
+
+Processing status of the Message Batch.
+
+Available options:
+
+`in_progress`,
+
+`canceling`,
+
+`ended`
+
+request_counts
+
+object
+
+required
+
+Tallies requests within the Message Batch, categorized by their status.
+
+Requests start as `processing` and move to one of the other statuses only once processing of the entire batch ends. The sum of all values always matches the total number of requests in the batch.
+
+Show child attributes
+
+ended_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which processing for the Message Batch ended. Specified only once processing ends.
+
+Processing ends when every request in a Message Batch has either succeeded, errored, canceled, or expired.
+
+created_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was created.
+
+expires_at
+
+string
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch will expire and end processing, which is 24 hours after creation.
+
+archived_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which the Message Batch was archived and its results became unavailable.
+
+cancel_initiated_at
+
+string | null
+
+required
+
+RFC 3339 datetime string representing the time at which cancellation was initiated for the Message Batch. Specified only if cancellation was initiated.
+
+results_url
+
+string | null
+
+required
+
+URL to a `.jsonl` file containing the results of the Message Batch requests. Specified only once processing ends.
+
+Results in the file are not guaranteed to be in the same order as requests. Use the `custom_id` field to match results to requests.
+
+[List Message Batches (beta)](https://docs.anthropic.com/en/api/listing-message-batches)[Message Batches examples](https://docs.anthropic.com/en/api/messages-batch-examples)
+
+[x](https://x.com/AnthropicAI)[linkedin](https://www.linkedin.com/company/anthropicresearch)
+
+cURL
+
+Python
+
+JavaScript
+
+```
+curl --request POST https://api.anthropic.com/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d/cancel \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "anthropic-beta: message-batches-2024-09-24"
+```
+
+200
+
+4XX
+
+```
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  "processing_status": "in_progress",
+  "request_counts": {
+    "processing": 100,
+    "succeeded": 50,
+    "errored": 30,
+    "canceled": 10,
+    "expired": 10
+  },
+  "ended_at": "2024-08-20T18:37:24.100435Z",
+  "created_at": "2024-08-20T18:37:24.100435Z",
+  "expires_at": "2024-08-20T18:37:24.100435Z",
+  "archived_at": "2024-08-20T18:37:24.100435Z",
+  "cancel_initiated_at": "2024-08-20T18:37:24.100435Z",
+  "results_url": "https://api.anthropic.com/v1/messages/batches/msgbatch_013Zva2CMHLNnXjNJJKqJ2EF/results"
+}
+```
+---
+
+# Message Batches examples
+
+Example usage for the Message Batches API
+
+The Message Batches API supports the same set of features as the Messages API. While this page focuses on how to use the Message Batches API, see [Messages API examples](https://docs.anthropic.com/en/api/messages-examples) for examples of the Messages API featureset.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-batch-examples#creating-a-message-batch)
+
+Creating a Message Batch
+
+Python
+
+TypeScript
+
+Shell
+
+```Python
+import anthropic
+from anthropic.types.beta.message_create_params import MessageCreateParamsNonStreaming
+from anthropic.types.beta.messages.batch_create_params import Request
+
+client = anthropic.Anthropic()
+
+message_batch = client.beta.messages.batches.create(
+    requests=[
+        Request(
+            custom_id="my-first-request",
+            params=MessageCreateParamsNonStreaming(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1024,
+                messages=[{
+                    "role": "user",
+                    "content": "Hello, world",
+                }]
+            )
+        ),
+        Request(
+            custom_id="my-second-request",
+            params=MessageCreateParamsNonStreaming(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1024,
+                messages=[{
+                    "role": "user",
+                    "content": "Hi again, friend",
+                }]
+            )
+        )
+    ]
+)
+print(message_batch)
+```
+
+JSON
+
+```JSON
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  "processing_status": "in_progress",
+  "request_counts": {
+    "processing": 2,
+    "succeeded": 0,
+    "errored": 0,
+    "canceled": 0,
+    "expired": 0
+  },
+  "ended_at": null,
+  "created_at": "2024-09-24T18:37:24.100435Z",
+  "expires_at": "2024-09-25T18:37:24.100435Z",
+  "cancel_initiated_at": null,
+  "results_url": null
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-batch-examples#polling-for-message-batch-completion)
+
+Polling for Message Batch completion
+
+To poll a Message Batch, you’ll need its `id`, which is provided in the response when [creating](https://docs.anthropic.com/en/api/messages-batch-examples#creating-a-message-batch) request or by [listing](https://docs.anthropic.com/en/api/messages-batch-examples#listing-all-message-batches-in-a-workspace) batches. Example `id`: `msgbatch_013Zva2CMHLNnXjNJJKqJ2EF`.
+
+Python
+
+TypeScript
+
+Shell
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic()
+
+message_batch = None
+while True:
+    message_batch = client.beta.messages.batches.retrieve(
+        MESSAGE_BATCH_ID
+    )
+    if message_batch.processing_status == "ended":
+        break
+              
+    print(f"Batch {MESSAGE_BATCH_ID} is still processing...")
+    time.sleep(60)
+print(message_batch)
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-batch-examples#listing-all-message-batches-in-a-workspace)
+
+Listing all Message Batches in a Workspace
+
+Python
+
+TypeScript
+
+Shell
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Automatically fetches more pages as needed.
+for message_batch in client.beta.messages.batches.list(
+    limit=20
+):
+    print(message_batch)
+```
+
+Output
+
+```Markup
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  ...
+}
+{
+  "id": "msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d",
+  "type": "message_batch",
+  ...
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-batch-examples#retrieving-message-batch-results)
+
+Retrieving Message Batch Results
+
+Once your Message Batch status is `ended`, you will be able to view the `results_url` of the batch and retrieve results in the form of a `.jsonl` file.
+
+Python
+
+TypeScript
+
+Shell
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Stream results file in memory-efficient chunks, processing one at a time
+for result in client.beta.messages.batches.results(
+    MESSAGE_BATCH_ID,
+):
+    print(result)
+```
+
+Output
+
+```Markup
+{
+  "id": "my-second-request",
+  "result": {
+    "type": "succeeded",
+    "message": {
+      "id": "msg_018gCsTGsXkYJVqYPxTgDHBU",
+      "type": "message",
+      ...
+    }
+  }
+}
+{
+  "custom_id": "my-first-request",
+  "result": {
+    "type": "succeeded",
+    "message": {
+      "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+      "type": "message",
+      ...
+    }
+  }
+}
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/messages-batch-examples#canceling-a-message-batch)
+
+Canceling a Message Batch
+
+Immediately after cancellation, a batch’s `processing_status` will be `canceling`. You can use the same [polling for batch completion](https://docs.anthropic.com/en/api/messages-batch-examples#polling-for-message-batch-completion) technique to poll for when cancellation is finalized as canceled batches also end up `ended` and may contain results.
+
+Python
+
+TypeScript
+
+Shell
+
+```Python
+import anthropic
+
+client = anthropic.Anthropic()
+
+message_batch = client.beta.messages.batches.cancel(
+    MESSAGE_BATCH_ID,
+)
+print(message_batch)
+```
+
+JSON
+
+```JSON
+{
+  "id": "msgbatch_013Zva2CMHLNnXjNJJKqJ2EF",
+  "type": "message_batch",
+  "processing_status": "canceling",
+  "request_counts": {
+    "processing": 2,
+    "succeeded": 0,
+    "errored": 0,
+    "canceled": 0,
+    "expired": 0
+  },
+  "ended_at": null,
+  "created_at": "2024-09-24T18:37:24.100435Z",
+  "expires_at": "2024-09-25T18:37:24.100435Z",
+  "cancel_initiated_at": "2024-09-24T18:39:03.114875Z",
+  "results_url": null
+}
+```
+---
+
+# Amazon Bedrock API
+
+Anthropic’s Claude models are now generally available through Amazon Bedrock.
+
+Calling Claude through Bedrock slightly differs from how you would call Claude when using Anthropic’s client SDK’s. This guide will walk you through the process of completing an API call to Claude on Bedrock in either Python or TypeScript.
+
+Note that this guide assumes you have already signed up for an [AWS account](https://portal.aws.amazon.com/billing/signup) and configured programmatic access.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#install-and-configure-the-aws-cli)
+
+Install and configure the AWS CLI
+
+1. [Install a version of the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html) at or newer than version `2.13.23`
+2. Configure your AWS credentials using the AWS configure command (see [Configure the AWS CLI](https://alpha.www.docs.aws.a2z.com/cli/latest/userguide/cli-chap-configure.html)) or find your credentials by navigating to “Command line or programmatic access” within your AWS dashboard and following the directions in the popup modal.
+3. Verify that your credentials are working:
+
+Shell
+
+```bash
+aws sts get-caller-identity  
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#install-an-sdk-for-accessing-bedrock)
+
+Install an SDK for accessing Bedrock
+
+Anthropic’s [client SDKs](https://docs.anthropic.com/en/api/client-sdks) support Bedrock. You can also use an AWS SDK like `boto3` directly.
+
+Python
+
+TypeScript
+
+Boto3 (Python)
+
+```Python
+pip install -U "anthropic[bedrock]"
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#accessing-bedrock)
+
+Accessing Bedrock
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#subscribe-to-anthropic-models)
+
+Subscribe to Anthropic models
+
+Go to the [AWS Console > Bedrock > Model Access](https://console.aws.amazon.com/bedrock/home?region=us-west-2#/modelaccess) and request access to Anthropic models. Note that Anthropic model availability varies by region. See [AWS documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html) for latest information.
+
+#### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#api-model-names)
+
+API model names
+
+|Model|Bedrock API model name|
+|---|---|
+|Claude 3 Haiku|anthropic.claude-3-haiku-20240307-v1:0|
+|Claude 3 Sonnet|anthropic.claude-3-sonnet-20240229-v1:0|
+|Claude 3 Opus|anthropic.claude-3-opus-20240229-v1:0|
+|Claude 3.5 Sonnet|anthropic.claude-3-5-sonnet-20241022-v2:0|
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#list-available-models)
+
+List available models
+
+The following examples show how to print a list of all the Claude models available through Bedrock:
+
+AWS CLI
+
+Boto3 (Python)
+
+```bash
+aws bedrock list-foundation-models --region=us-west-2 --by-provider anthropic --query "modelSummaries[*].modelId"
+```
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock#making-requests)
+
+Making requests
+
+The following examples shows how to generate text from Claude 3 Sonnet on Bedrock:
+
+Python
+
+TypeScript
+
+Boto3 (Python)
+
+```Python
+from anthropic import AnthropicBedrock
+
+client = AnthropicBedrock(
+    # Authenticate by either providing the keys below or use the default AWS credential providers, such as
+    # using ~/.aws/credentials or the "AWS_SECRET_ACCESS_KEY" and "AWS_ACCESS_KEY_ID" environment variables.
+    aws_access_key="<access key>",
+    aws_secret_key="<secret key>",
+    # Temporary credentials can be used with aws_session_token.
+    # Read more at https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html.
+    aws_session_token="<session_token>",
+    # aws_region changes the aws region to which the request is made. By default, we read AWS_REGION,
+    # and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.
+    aws_region="us-west-2",
+)
+
+message = client.messages.create(
+    model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+    max_tokens=256,
+    messages=[{"role": "user", "content": "Hello, world"}]
+)
+print(message.content)
+```
+
+See our [client SDKs](https://docs.anthropic.com/en/api/client-sdks) for more details, and the official Bedrock docs [here](https://docs.aws.amazon.com/bedrock/).
+
+---
+
+# Vertex AI API
+
+Anthropic’s Claude models are now generally available through [Vertex AI](https://cloud.google.com/vertex-ai).
+
+The Vertex API for accessing Claude is nearly-identical to the [Messages API](https://docs.anthropic.com/en/api/messages) and supports all of the same options, with two key differences:
+
+- In Vertex, `model` is not passed in the request body. Instead, it is specified in the Google Cloud endpoint URL.
+- In Vertex, `anthropic_version` is passed in the request body (rather than as a header), and must be set to the value `vertex-2023-10-16`.
+
+Vertex is also supported by Anthropic’s official [client SDKs](https://docs.anthropic.com/en/api/client-sdks). This guide will walk you through the process of making a request to Claude on Vertex AI in either Python or TypeScript.
+
+Note that this guide assumes you have already have a GCP project that is able to use Vertex AI. See [using the Claude 3 models from Anthropic](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude) for more information on the setup required, as well as a full walkthrough.
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-vertex-ai#install-an-sdk-for-accessing-vertex-ai)
+
+Install an SDK for accessing Vertex AI
+
+First, install Anthropic’s [client SDK](https://docs.anthropic.com/en/api/client-sdks) for your language of choice.
+
+Python
+
+TypeScript
+
+```Python
+pip install -U google-cloud-aiplatform "anthropic[vertex]"
+```
+
+## 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-vertex-ai#accessing-vertex-ai)
+
+Accessing Vertex AI
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-vertex-ai#model-availability)
+
+Model Availability
+
+Note that Anthropic model availability varies by region. Search for “Claude” in the [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/model-garden) or go to [Use Claude 3](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude) for the latest information.
+
+#### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-vertex-ai#api-model-names)
+
+API model names
+
+|Model|Vertex AI API model name|
+|---|---|
+|Claude 3 Haiku|claude-3-haiku@20240307|
+|Claude 3 Sonnet|claude-3-sonnet@20240229|
+|Claude 3 Opus (Public Preview)|claude-3-opus@20240229|
+|Claude 3.5 Sonnet|claude-3-5-sonnet-v2@20241022|
+
+### 
+
+[​
+
+](https://docs.anthropic.com/en/api/claude-on-vertex-ai#making-requests)
+
+Making requests
+
+Before running requests you may need to run `gcloud auth application-default login` to authenticate with GCP.
+
+The following examples shows how to generate text from Claude 3 Haiku on Vertex AI:
+
+Python
+
+TypeScript
+
+cURL
+
+```Python
+from anthropic import AnthropicVertex
+
+project_id = "MY_PROJECT_ID"
+# Where the model is running. e.g. us-central1 or europe-west4 for haiku
+region = "MY_REGION"
+
+client = AnthropicVertex(project_id=project_id, region=region)
+
+message = client.messages.create(
+    model="claude-3-haiku@20240307",
+    max_tokens=100,
+    messages=[
+        {
+            "role": "user",
+            "content": "Hey Claude!",
+        }
+    ],
+)
+print(message)
+```
+
+See our [client SDKs](https://docs.anthropic.com/en/api/client-sdks) and the official [Vertex AI docs](https://cloud.google.com/vertex-ai/docs) for more details.

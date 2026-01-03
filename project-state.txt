@@ -1,0 +1,95 @@
+# Project SIC (Self-Improving Collective) Development Notes
+Last Updated: November 22, 2024
+
+## Core Concept
+Development of a multi-agent system capable of self-improvement through collaborative AI agents. Current implementation uses Claude and OpenAI models working in specialized roles to analyze, design, implement, and validate system improvements.
+
+## Key Components Developed
+1. **Core Framework**
+   - Orchestrator managing specialized agents
+   - Task management and priority system
+   - Message hub for inter-agent communication
+   - State management with rollback capability
+   - Comprehensive monitoring system
+
+2. **Specialized Agents**
+   - Architect (System Design)
+   - Developer (Code Implementation)
+   - UI/UX Designer
+   - QA/Testing
+   - Security
+
+3. **API Integration**
+   - OpenAI models: o1, o1-mini, GPT4-Turbo
+   - Claude models: Opus, Sonnet, Haiku
+   - Config management for API keys and model selection
+
+## Current Challenges
+1. Code visibility between agents needs improvement - agents should see each other's changes
+2. Still running empty cycles after task completion
+3. Cost optimization needed ($0.01+ per run)
+4. Context window management for long operations
+5. System messages could be more role-specific
+
+## Next Steps
+1. **Immediate Fixes**
+   - Stop empty cycles after task completion
+   - Ensure code changes are visible in agent prompts
+   - Optimize token usage in prompts
+   - Add proper cycle termination conditions
+
+2. **Planned Features**
+   - Inter-agent communication system
+     - Allow agents to query each other before making decisions
+     - Support for "team discussions" about complex issues
+     - Enable collaborative problem-solving
+   - Remove artificial limits (2 receptions) in favor of organic completion
+   - Role-appropriate behaviors for each agent type
+   - Orchestrator message interception and management
+
+3. **Future Ideas**
+   - Social game mechanics (inspired by Mafia/Werewolf)
+   - Self-improvement capabilities
+   - Safety protocols for autonomous operation
+   - Enhanced logging and analytics
+   - Cost optimization strategies
+
+## Key Design Decisions & Discussions
+1. **Task Classification**
+   - Initially considered Haiku for natural language task classification
+   - Decided against it due to AI-generated inputs being consistently formatted
+   - Left comments about potential future Haiku integration for handling edge cases
+   - Possibility of parallel Haiku instances for different departments noted for future consideration
+
+2. **State Management**
+   - Implemented rollback capability for safety
+   - Historical state tracking
+   - Metrics collection for performance analysis
+
+3. **Context Window Management**
+   - Need to manage model context windows carefully
+   - Strategy to spin up fresh instances periodically
+   - Caching system for frequent operations
+
+## Cost Analysis
+Current test run costs:
+- Claude 3 Haiku (UX, Guardian): ~$0.009 (69%)
+- GPT-4o-mini (Architect, Implementation): ~$0.004 (31%)
+- Total per run: ~$0.013 USD
+
+Cost optimization needed for:
+1. Development testing
+2. Production deployment
+3. Continuous operation
+
+## Notes for Future Development
+- Consider implementing Haiku assistants if task classification becomes more complex
+- Explore parallel processing capabilities
+- Consider adding specialized agents for specific domains
+- Develop better metrics for measuring successful improvements
+
+## Team Structure
+Currently implemented roles focus on core system development, with potential for expansion into specialized domains. Each agent has clear responsibilities while maintaining ability to collaborate through the orchestrator.
+
+## Project Codename: SIC
+Self-Improving Collective (formerly considered SICT) - Named to reflect the collaborative nature of multiple AI models working together toward system improvement.

@@ -1,0 +1,405 @@
+{
+    "project": "SIC",
+    "fullName": "Self-Improving Collective",
+    "lastUpdate": "2024-11-22T04:24:00Z",
+    "version": "v0.1.112224.000200",
+    "environmentSetup": {
+        "projectRoot": "D:\\CODE_REPOS\\siclops",
+        "structure": {
+            "src": {
+                "main": "index.ts",
+                "core": [
+                    "agent.ts",
+                    "agent-base.ts",
+                    "types.ts",
+                    "config.ts",
+                    "orchestrator.ts"
+                ],
+                "utils": [
+                    "file-utils.ts",
+                    "version-utils.ts"
+                ]
+            },
+            "data": {
+                "logs": {
+                    "agents": "individual agent logs",
+                    "cycles": "cycle-specific logs"
+                },
+                "summaries": "cost and narrative summaries"
+            }
+        },
+        "setupCommands": [
+            "mkdir sic-project",
+            "cd sic-project",
+            "npm init -y",
+            "npm install typescript @types/node ts-node dotenv",
+            "npm install @anthropic-ai/sdk openai",
+            "npm install -D @types/node typescript",
+            "npm install csv-writer"
+        ],
+        "executionCommand": "npx ts-node src/index.ts",
+        "requiredFiles": [
+            {
+                "path": ".env",
+                "purpose": "API keys storage",
+                "format": "ANTHROPIC_API_KEY=key\nOPENAI_API_KEY=key"
+            },
+            {
+                "path": "tsconfig.json",
+                "purpose": "TypeScript configuration"
+            }
+        ]
+    },
+    "technologyDecisions": {
+        "languageChoice": {
+            "selected": "TypeScript",
+            "reasons": [
+                "Strong type safety for complex agent interactions",
+                "Excellent SDK support for both APIs",
+                "Superior async/await patterns for API handling",
+                "Rich ecosystem for future expansion",
+                "Easy JSON handling (native to language)",
+                "Strong IDE support with VS Code",
+                "Easy deployment options with Node.js"
+            ],
+            "alternativesConsidered": [
+                {
+                    "language": "Python",
+                    "pros": [
+                        "Good AI/ML ecosystem",
+                        "Simple syntax"
+                    ],
+                    "cons": [
+                        "Less rigid type system",
+                        "More complex async handling"
+                    ],
+                    "rejectionReason": "TypeScript offered better type safety and API integration"
+                },
+                {
+                    "language": "Go",
+                    "pros": ["Performance", "Concurrency"],
+                    "cons": ["Less mature AI SDK ecosystem"],
+                    "rejectionReason": "SDK ecosystem limitations"
+                }
+            ]
+        }
+    },
+    "developmentHistory": {
+        "initialChallenges": [
+            {
+                "issue": "Type safety with agent inheritance",
+                "solution": "Proper interface definitions and abstract classes",
+                "learning": "Need for careful type hierarchy design"
+            },
+            {
+                "issue": "JSON parsing from AI responses",
+                "solution": "Added response cleaning for markdown/code blocks",
+                "learning": "AIs tend to format responses as markdown even when asked not to"
+            },
+            {
+                "issue": "Cost tracking accuracy",
+                "solution": "Implemented per-model cost calculations",
+                "context": "Different models have vastly different pricing structures"
+            }
+        ],
+        "unexpectedDiscoveries": [
+            {
+                "discovery": "Guardian's detailed security reviews of non-existent code",
+                "implication": "Agents can provide valuable architectural input early",
+                "potentialUse": "Consider two-phase reviews: architectural and implementation"
+            },
+            {
+                "discovery": "UX Visionary being isolated by other agents",
+                "implication": "Natural emergence of workflow patterns",
+                "potentialUse": "Study emerged behaviors for workflow optimization"
+            }
+        ],
+        "abandonedApproaches": [
+            {
+                "approach": "Direct code modification",
+                "why": "Agents initially just described changes",
+                "replacement": "Need to implement actual code generation and modification"
+            },
+            {
+                "approach": "Fixed turn limits",
+                "why": "Too restrictive for natural development flow",
+                "replacement": "Planning organic completion criteria"
+            }
+        ]
+    },
+    "conversationalInsights": {
+        "agentPersonalities": {
+            "observation": "Distinct personalities emerged naturally",
+            "examples": [
+                {
+                    "agent": "Guardian",
+                    "trait": "Obsession with logging and validation",
+                    "potential": "Could be channeled into robust system monitoring"
+                },
+                {
+                    "agent": "UX Visionary",
+                    "trait": "Focus on user interaction patterns",
+                    "potential": "Valuable for interface design decisions"
+                }
+            ]
+        },
+        "teamDynamics": {
+            "emergentBehaviors": [
+                "Preference for self-passing without explicit instruction",
+                "Natural formation of review chains",
+                "Implicit trust hierarchies"
+            ],
+            "implications": [
+                "Need for explicit collaboration guidance",
+                "Potential for emergent leadership roles",
+                "Importance of balanced interaction patterns"
+            ]
+        }
+    },
+    "futureConcepts": {
+        "mafiaMechanics": {
+            "inspiration": "Social deduction games",
+            "potentialApplications": [
+                "Testing trust mechanisms",
+                "Developing conflict resolution",
+                "Studying group dynamics",
+                "Training ethical decision making"
+            ],
+            "considerations": [
+                "Balance between competition and cooperation",
+                "Managing hidden information",
+                "Maintaining system integrity while allowing deception",
+                "Using game mechanics for system improvement"
+            ],
+            "implementation": "future_consideration"
+        },
+        "contextManagement": {
+            "strategies": [
+                {
+                    "type": "stateFiles",
+                    "format": "JSON preferred over Markdown",
+                    "reason": "More efficient parsing and token usage"
+                },
+                {
+                    "type": "agentMemory",
+                    "approach": "Selective persistence with regular pruning",
+                    "consideration": "Balance between history and token efficiency"
+                }
+            ]
+        },
+        "verbosityControl": {
+            "modes": [
+                {
+                    "name": "development",
+                    "features": [
+                        "Detailed logging",
+                        "Narrative summaries",
+                        "Full agent discussions"
+                    ]
+                },
+                {
+                    "name": "production",
+                    "features": [
+                        "Minimal logging",
+                        "Cost optimization",
+                        "Focus on code changes"
+                    ]
+                }
+            ],
+            "implementation": "Configuration-based toggle system"
+        }
+    },
+    "systemState": {
+        "developmentStage": "early_poc",
+        "currentFocus": "agent_interaction_framework",
+        "activeComponents": [
+            "core_framework",
+            "specialized_agents",
+            "cost_tracking",
+            "logging_system"
+        ]
+    },
+    "implementedFeatures": {
+        "agentSystem": {
+            "orchestrator": {
+                "model": "claude-3-5-sonnet-20241022",
+                "role": "coordination",
+                "currentCapabilities": [
+                    "agent_lifecycle_management",
+                    "task_distribution",
+                    "cost_tracking"
+                ],
+                "plannedCapabilities": [
+                    "message_interception",
+                    "state_management",
+                    "safety_monitoring"
+                ]
+            },
+            "agents": [
+                {
+                    "role": "UX_Visionary",
+                    "model": "claude-3-haiku-20240307",
+                    "focus": "user_interface_design",
+                    "costProfile": "higher_than_expected"
+                },
+                {
+                    "role": "System_Architect",
+                    "model": "gpt-4o-mini",
+                    "focus": "technical_design",
+                    "costProfile": "efficient"
+                },
+                {
+                    "role": "Guardian",
+                    "model": "claude-3-haiku-20240307",
+                    "focus": "security_validation",
+                    "costProfile": "higher_than_expected"
+                },
+                {
+                    "role": "Implementation_Specialist",
+                    "model": "gpt-4o-mini",
+                    "focus": "code_implementation",
+                    "costProfile": "efficient"
+                }
+            ]
+        },
+        "logging": {
+            "implementations": [
+                "agent_state_tracking",
+                "cost_monitoring",
+                "operation_history",
+                "narrative_summaries"
+            ],
+            "formats": [
+                "json_logs",
+                "csv_cost_tracking",
+                "markdown_narratives"
+            ]
+        }
+    },
+    "knownIssues": [
+        {
+            "id": "CORE_001",
+            "type": "functionality",
+            "description": "Agents not implementing actual code changes",
+            "impact": "high",
+            "details": "Currently only passing schemas and descriptions rather than writing implementation code",
+            "proposedFix": "Enhance prompts to focus on concrete code generation"
+        },
+        {
+            "id": "CYCLE_001",
+            "type": "efficiency",
+            "description": "Continuing empty cycles after task completion",
+            "impact": "medium",
+            "details": "System runs full cycle count even when no work remains",
+            "proposedFix": "Add completion detection and early termination"
+        },
+        {
+            "id": "COST_001",
+            "type": "optimization",
+            "description": "High token usage in Claude Haiku instances",
+            "impact": "medium",
+            "details": "Verbose logging and context accumulation leading to higher costs",
+            "proposedFix": "Implement context pruning and optimize message passing"
+        },
+        {
+            "id": "LIMIT_001",
+            "type": "design",
+            "description": "Artificial 2-reception limit constraining natural workflow",
+            "impact": "high",
+            "details": "Agents forced to stop participation regardless of task needs",
+            "proposedFix": "Replace with organic completion criteria"
+        }
+    ],
+    "developmentPlans": {
+        "immediate": [
+            {
+                "feature": "code_implementation",
+                "description": "Enable actual TypeScript code generation",
+                "requirements": [
+                    "Update agent prompts",
+                    "Implement code validation",
+                    "Add proper code passing between agents"
+                ]
+            },
+            {
+                "feature": "cycle_management",
+                "description": "Improve task completion detection",
+                "requirements": [
+                    "Add completion criteria",
+                    "Implement early termination",
+                    "Track productive vs non-productive cycles"
+                ]
+            }
+        ],
+        "shortTerm": [
+            {
+                "feature": "agent_communication",
+                "description": "Enable direct agent queries and discussions",
+                "requirements": [
+                    "Query/response protocol",
+                    "Context management",
+                    "Discussion state tracking"
+                ]
+            },
+            {
+                "feature": "state_management",
+                "description": "Improve agent state persistence",
+                "requirements": [
+                    "JSON-based state files",
+                    "Efficient context pruning",
+                    "Selective history retention"
+                ]
+            }
+        ],
+        "longTerm": [
+            {
+                "feature": "self_improvement",
+                "description": "Enable system to enhance its own capabilities",
+                "requirements": [
+                    "Safe code modification protocols",
+                    "Performance metrics",
+                    "Improvement validation"
+                ]
+            },
+            {
+                "feature": "social_dynamics",
+                "description": "Implement complex agent interactions",
+                "requirements": [
+                    "Role-based interactions",
+                    "Trust mechanisms",
+                    "Consensus protocols"
+                ]
+            }
+        ]
+    },
+    "experimentalIdeas": {
+        "agentDynamics": [
+            {
+                "concept": "mafia_game_mechanics",
+                "purpose": "Test complex social interactions",
+                "potential": "Insight into trust and deception handling",
+                "status": "future_consideration"
+            },
+            {
+                "concept": "organic_completion",
+                "purpose": "Remove artificial limits",
+                "potential": "More natural development flow",
+                "status": "high_priority"
+            }
+        ],
+        "systemEnhancements": [
+            {
+                "concept": "orchestrator_oversight",
+                "purpose": "Message interception and validation",
+                "potential": "Better control and safety",
+                "status": "planned"
+            },
+            {
+                "concept": "dynamic_team_scaling",
+                "purpose": "Adjust team size based on task",
+                "potential": "Improved resource utilization",
+                "status": "consideration"
+            }
+        ]
+    }
+}

@@ -1,0 +1,28 @@
+# Environment variables with API keys
+.env
+
+# Node modules
+node_modules/
+
+# TypeScript compiled output
+dist/
+
+# Logs (we can decide later if we want to track these)
+data/logs/
+data/summaries/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.log
