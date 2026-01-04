@@ -95,22 +95,51 @@ export class Agent extends BaseAgent {
                 })
                 .join('\n\n');
 
-                const prompt = `You are ${this.config.name}. ${this.config.personality}
+            // Check if this is a conversation vs code task
+            const isConversation = file.content.includes('TEAM DISCUSSION');
+
+            const prompt = isConversation ?
+                `You are ${this.config.name}. ${this.config.personality}
                 Your focus: ${this.config.taskFocus}
-                
+
+                DISCUSSION CONTEXT:
+                ${file.content}
+
+                CONVERSATION SO FAR:
+                ${historyText || "You're first to speak."}
+
+                Team members: ${availableTargets.join(', ')}
+
+                Your turn to contribute to the discussion!
+
+                Respond with ONLY a JSON object in this format:
+                {
+                    "changes": {
+                        "description": "Your thoughts and contribution to the discussion. Reference other team members by name when responding to their points. Be conversational and collaborative.",
+                        "code": "",
+                        "location": "discussion"
+                    },
+                    "targetAgent": "Name of who should speak next (choose from: ${availableTargets.join(', ')})",
+                    "reasoning": "Brief note on who you think should speak next and why",
+                    "notes": "Any additional thoughts or observations about the discussion"
+                }`
+                :
+                `You are ${this.config.name}. ${this.config.personality}
+                Your focus: ${this.config.taskFocus}
+
                 Current file:
                 ${file.content}
-                
+
                 File history:
                 ${historyText}
-                
+
                 Available team members to pass to: ${availableTargets.join(', ')}
-                
+
                 Based on your role and focus:
                 1. Review the current state
                 2. Make any necessary changes
                 3. Choose a team member to pass this to
-                
+
                 You MUST respond with ONLY a valid JSON object. You MUST include actual implementation code in the "code" field, not just descriptions.
                 IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSON.
                 Format:

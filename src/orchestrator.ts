@@ -11,6 +11,7 @@ interface OrchestratorConfig {
     logDirectory: string;
     costSummaryPath: string;
     simulationMode?: boolean;
+    conversationMode?: boolean;  // NEW: For team discussions
 }
 
 export class Orchestrator {
@@ -63,17 +64,35 @@ export class Orchestrator {
 
         // Initial project file setup
         const projectFile: ProjectFile = {
-            content: `// A TypeScript class for managing user preferences
-// with validation and type safety
-class UserPreferences {
-    // TODO: Define user preference storage and validation
-    // Needs to handle:
-    // - Theme settings (light/dark)
-    // - Notification preferences
-    // - Privacy settings
-    // Requirements TBD...
-}`,
-            currentStage: 'initial_design',
+            content: `TEAM DISCUSSION: Framework Development Priorities
+
+You are part of a self-improving AI team building a virtual assistant framework.
+
+CURRENT SYSTEM:
+- Built in TypeScript
+- Uses Claude API (Anthropic) and OpenAI API
+- Multi-agent orchestration with cost tracking
+- Agents can spawn other agents for subtasks
+- Can write scripts for repetitive work
+
+YOUR HUMAN USER:
+- Values feature set and development speed over perfection
+- Will actually use what you build
+- Wants a great virtual assistant framework
+
+RECENT ACHIEVEMENT:
+- Cost analysis system implemented and working
+
+YOUR TASK:
+Discuss as a team what features/improvements your framework needs next.
+- Build a prioritized list of what to implement
+- Debate the merits of different approaches
+- Reach consensus on top 3-5 priorities
+- Reference each other by name (Alex, Sam, Morgan, Jordan, Pierre)
+- Think out loud about tradeoffs
+
+REMEMBER: You're building this FOR a real user who values speed. Don't overthink logging or type safety - focus on useful features.`,
+            currentStage: 'team_discussion',
             history: []
         };
 
@@ -83,8 +102,8 @@ class UserPreferences {
             return;
         }
 
-        // Start with UX Visionary
-        let currentAgent = this.agents.get("UX Visionary");
+        // Start with Alex (UX Visionary)
+        let currentAgent = this.agents.get("Alex");
         if (!currentAgent) {
             throw new Error('Could not find initial agent');
         }

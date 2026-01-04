@@ -10,6 +10,14 @@ export interface Changes {
     location?: string;     // File/class/method being modified
 }
 
+export interface ConversationResponse {
+    thinking: string;      // Private reasoning before speaking
+    notesOnOthers?: Record<string, string>;  // Quick reactions to others
+    response: string;      // Public statement to the team
+    referencingAgents?: string[];  // Who they're responding to
+    consensusSignal: 'agree' | 'building' | 'concerned';  // Consensus state
+}
+
 export interface ProjectFile {
     content: string;
     currentStage: string;
@@ -38,8 +46,9 @@ export interface ProcessResult {
     value?: number;
     targetAgent: string;
     accepted: boolean;
-    changes: Changes;
+    changes?: Changes;  // Optional for conversation mode
     reasoning: string;
+    conversation?: ConversationResponse;  // For conversation mode
     cost: number;
     tokens: {
         input: number;

@@ -38,7 +38,7 @@ export abstract class BaseAgent {
     abstract processFile(file: ProjectFile, availableTargets: string[]): Promise<ProcessResult>;
 
     canProcess(): boolean {
-        return this.state.timesProcessed < 2;
+        return this.state.timesProcessed < 6;  // Increased for conversation mode
     }
 
     protected async log(message: string, data?: any): Promise<void> {
