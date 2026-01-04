@@ -55,7 +55,24 @@ export class Agent extends BaseAgent {
             response = jsonMatch[0];
         }
 
-        return response;
+        // Fix common JSON issues: escape unescaped newlines and tabs in string values
+        // This is a rough fix - find strings and escape control characters in them
+        try {
+            // Try to parse first - if it works, return as-is
+            JSON.parse(response);
+            return response;
+        } catch (e) {
+            // If parsing fails, try to fix control characters
+            // Replace literal newlines and tabs within quoted strings
+            response = response.replace(/"([^"]*?)"/g, (match, content) => {
+                const escaped = content
+                    .replace(/\n/g, '\\n')
+                    .replace(/\r/g, '\\r')
+                    .replace(/\t/g, '\\t');
+                return `"${escaped}"`;
+            });
+            return response;
+        }
     }
 
     async processFile(
@@ -112,16 +129,18 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
+                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, debate, ask questions, reference other team members' points. DO NOT write implementation code - just talk about what you think should be built and why.
+
                 Respond with ONLY a JSON object in this format:
                 {
                     "changes": {
-                        "description": "Your thoughts and contribution to the discussion. Reference other team members by name when responding to their points. Be conversational and collaborative.",
+                        "description": "Your thoughts and contribution to the discussion. Reference other team members by name. Be conversational. Debate ideas. NO CODE - just discussion!",
                         "code": "",
                         "location": "discussion"
                     },
                     "targetAgent": "Name of who should speak next (choose from: ${availableTargets.join(', ')})",
                     "reasoning": "Brief note on who you think should speak next and why",
-                    "notes": "Any additional thoughts or observations about the discussion"
+                    "notes": "Any additional thoughts or observations"
                 }`
                 :
                 `You are ${this.config.name}. ${this.config.personality}

@@ -143,7 +143,7 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
                 timestamp: new Date().toISOString(),
                 action: 'review_and_modify',
                 notes: result.reasoning,
-                changes: result.changes
+                changes: result.changes || { description: '', location: '' }
             });
 
             // Apply changes if any
@@ -171,16 +171,20 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
 
     private async generateNarrativeSummary(): Promise<void> {
         const narrativePath = `${this.config.logDirectory}/narrative_summary.md`;
-        
-        let narrative = `# Project Development Session\n\n`;
-        narrative += `## Initial Task\n`;
-        narrative += `Collaborative development of a UserPreferences class to handle theme, notification, and privacy settings.\n\n`;
-        narrative += `## Development Timeline\n\n`;
-        
+
+        // Check if this was a conversation or code session
+        const isConversation = this.config.conversationMode;
+
+        let narrative = `# ${isConversation ? 'Team Discussion' : 'Project Development Session'}\n\n`;
+        narrative += `**Date:** ${new Date().toLocaleDateString()}\n`;
+        narrative += `**Mode:** ${isConversation ? 'Conversation' : 'Code Development'}\n`;
+        narrative += `**Participants:** ${Array.from(this.agents.keys()).join(', ')}\n\n`;
+        narrative += `---\n\n`;
+
         // Process history from project file for each cycle
         for (const cycle of this.cycleCosts) {
-            narrative += `### ${cycle.cycle}\n\n`;
-            
+            narrative += `## ${cycle.cycle}\n\n`;
+
             // Get all files in the cycles directory that end with this cycle id
             const cycleFiles = await FileUtils.readDir(`${this.config.logDirectory}/cycles`);
             const cycleLogFile = cycleFiles.find(f => f.endsWith(`${cycle.cycle}.log`));
@@ -191,64 +195,114 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
             const cycleLog = await FileUtils.readLogFile(
                 `${this.config.logDirectory}/cycles/${cycleLogFile}`
             );
-            
+
+            // Get the initial task from first entry
+            if (cycleLog.length > 0 && cycleLog[0].currentState?.content) {
+                const taskContent = cycleLog[0].currentState.content;
+                if (isConversation && taskContent.includes('YOUR TASK:')) {
+                    const taskMatch = taskContent.match(/YOUR TASK:\n(.+?)(?:\n\n|$)/s);
+                    if (taskMatch) {
+                        narrative += `### Discussion Topic\n${taskMatch[1]}\n\n`;
+                    }
+                }
+            }
+
+            narrative += `### Discussion Flow\n\n`;
+
+            // Track rounds of discussion by grouping consecutive messages
+            let roundCount = 1;
+            let currentRound: any[] = [];
+
             // Parse and format each step
             for (const entry of cycleLog) {
                 if (entry.currentState?.history) {
                     const step = entry.currentState.history[entry.currentState.history.length - 1];
-                    // In generateNarrativeSummary method:
                     if (step) {
-                        narrative += `**${step.agent}** ${step.timestamp}\n`;
-                        narrative += `${step.notes}\n\n`;
-                        if (step.changes.description) {
-                            narrative += "Changes described:\n";
-                            narrative += `${step.changes.description}\n\n`;
-                        }
-                        if (step.changes.code) {
-                            narrative += "```typescript\n";
-                            narrative += `// Location: ${step.changes.location}\n`;
-                            narrative += `${step.changes.code}\n`;
-                            narrative += "```\n\n";
+                        currentRound.push(step);
+
+                        // Start new round every 5 exchanges or when we detect pattern shift
+                        if (currentRound.length >= 5) {
+                            narrative += this.formatRound(roundCount, currentRound, isConversation);
+                            currentRound = [];
+                            roundCount++;
                         }
                     }
                 }
             }
-        }
-        
-        // Calculate and add cost summary
-        const costs = {
-            haiku: 0,
-            gpt4: 0,
-            total: 0
-        };
 
-        this.cycleCosts.forEach(cycle => {
-            Array.from(this.agents.values()).forEach(agent => {
-                const state = agent.getState();
-                const lastOp = state.operations[state.operations.length - 1];
-                if (lastOp) {
-                    if (agent.getModel().includes('claude-3-haiku')) {
-                        costs.haiku += lastOp.cost;
-                    } else {
-                        costs.gpt4 += lastOp.cost;  // Fixed from previous version
-                    }
-                    costs.total += lastOp.cost;
-                }
+            // Format any remaining messages
+            if (currentRound.length > 0) {
+                narrative += this.formatRound(roundCount, currentRound, isConversation);
+            }
+        }
+
+        // Calculate and add cost summary
+        const costs: Record<string, number> = {};
+        let total = 0;
+
+        Array.from(this.agents.values()).forEach(agent => {
+            const state = agent.getState();
+            const modelKey = agent.getModel();
+            costs[modelKey] = costs[modelKey] || 0;
+
+            state.operations.forEach(op => {
+                costs[modelKey] += op.cost;
+                total += op.cost;
             });
         });
 
         narrative += `\n## Cost Analysis\n`;
-        narrative += `- Claude 3 Haiku Agents (UX, Guardian): $${costs.haiku.toFixed(6)} (${((costs.haiku/costs.total)*100).toFixed(1)}%)\n`;
-        narrative += `- GPT-4o-mini Agents (Architect, Implementation): $${costs.gpt4.toFixed(6)} (${((costs.gpt4/costs.total)*100).toFixed(1)}%)\n`;
-        narrative += `- **Total Development Cost:** $${costs.total.toFixed(6)} USD\n\n`;
-        
-        narrative += `## Next Steps\n`;
-        narrative += `1. Add validation logic for user preferences\n`;
-        narrative += `2. Implement storage persistence\n`;
-        narrative += `3. Add type safety for theme options\n`;
-        narrative += `4. Complete notification preferences implementation\n`;
+        Object.entries(costs).forEach(([model, cost]) => {
+            const percentage = total > 0 ? ((cost/total)*100).toFixed(1) : '0.0';
+            narrative += `- ${model}: $${cost.toFixed(6)} (${percentage}%)\n`;
+        });
+        narrative += `- **Total Cost:** $${total.toFixed(6)} USD\n\n`;
 
         await FileUtils.writeFile(narrativePath, narrative);
+    }
+
+    private formatRound(roundNum: number, steps: any[], isConversation: boolean): string {
+        let output = `#### Round ${roundNum}\n\n`;
+
+        steps.forEach(step => {
+            output += `**${step.agent}:**\n`;
+
+            if (isConversation) {
+                // For conversations, show description as quote
+                if (step.changes.description) {
+                    const preview = step.changes.description.substring(0, 300);
+                    output += `> ${preview}${step.changes.description.length > 300 ? '...' : ''}\n\n`;
+                }
+
+                // Only show code if it exists and looks intentional (not empty)
+                if (step.changes.code && step.changes.code.trim().length > 10) {
+                    output += `<details>\n<summary>Code snippet (click to expand)</summary>\n\n`;
+                    output += '```typescript\n';
+                    output += step.changes.code.substring(0, 500);
+                    output += step.changes.code.length > 500 ? '\n// ... (truncated)' : '';
+                    output += '\n```\n</details>\n\n';
+                }
+            } else {
+                // For code sessions, show both description and code prominently
+                if (step.changes.description) {
+                    output += `${step.changes.description}\n\n`;
+                }
+                if (step.changes.code) {
+                    output += '```typescript\n';
+                    output += `// Location: ${step.changes.location}\n`;
+                    output += step.changes.code + '\n';
+                    output += '```\n\n';
+                }
+            }
+
+            // Show reasoning in small text
+            if (step.notes && step.notes !== step.changes.description) {
+                output += `*Reasoning: ${step.notes.substring(0, 150)}...*\n\n`;
+            }
+        });
+
+        output += `---\n\n`;
+        return output;
     }
 
     private getRandomAgent(): Agent | null {
