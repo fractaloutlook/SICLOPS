@@ -1154,6 +1154,24 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         await FileUtils.appendToCsv(this.config.costSummaryPath, records);
     }
 
+    getCostSummary(): { thisRun: number; allTime: number; budget: number; estimatedRunsLeft: number } {
+        const thisRunCost = this.cycleCosts.reduce((sum, c) => sum + c.total, 0);
+
+        // Get all-time cost from agent states (persisted across runs)
+        const allTimeCost = Array.from(this.agents.values())
+            .reduce((sum, agent) => sum + agent.getState().totalCost, 0);
+
+        const budget = 60; // $50-70, using $60 as midpoint
+        const estimatedRunsLeft = Math.floor((budget - allTimeCost) / (thisRunCost || 0.01));
+
+        return {
+            thisRun: thisRunCost,
+            allTime: allTimeCost,
+            budget,
+            estimatedRunsLeft: Math.max(0, estimatedRunsLeft)
+        };
+    }
+
     private async generateFinalSummary(): Promise<void> {
         const summary = Array.from(this.agents.values()).map(agent => {
             const state = agent.getState();

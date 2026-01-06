@@ -382,9 +382,23 @@ export class Agent extends BaseAgent {
             }
 
             await this.updateState('process_file', tokens.input, tokens.output, cost);
-            
-            // Validate target agent - if undefined or not in available list, pick first available
+
+            // Validate target agent
             let targetAgent = response.targetAgent;
+
+            // Prevent self-passing (waste of tokens)
+            if (targetAgent === this.config.name) {
+                const othersAvailable = availableTargets.filter(t => t !== this.config.name);
+                if (othersAvailable.length > 0) {
+                    console.warn(`[Agent:${this.config.name}] Cannot pass to self, picking ${othersAvailable[0]}`);
+                    targetAgent = othersAvailable[0];
+                } else {
+                    console.warn(`[Agent:${this.config.name}] No other agents available`);
+                    targetAgent = availableTargets[0];
+                }
+            }
+
+            // Validate target exists in available list
             if (!targetAgent || !availableTargets.includes(targetAgent)) {
                 console.warn(`[Agent:${this.config.name}] Invalid target "${targetAgent}", defaulting to ${availableTargets[0]}`);
                 targetAgent = availableTargets[0];

@@ -61,7 +61,19 @@ export abstract class BaseAgent {
         };
 
         await FileUtils.appendToLog(this.logPath, logEntry);
-        console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${message}`);
+
+        // More informative console output
+        let consoleMessage = message;
+        if (message === 'State updated' && data) {
+            consoleMessage = `Turn ${data.timesProcessed}/6 | Cost $${data.totalCost.toFixed(4)}`;
+        } else if (message === 'Processed file' && data) {
+            const hasFileOps = data.fileRead || data.fileEdit || data.fileWrite;
+            const fileOpType = data.fileRead ? '📖 READ' : data.fileEdit ? '✏️ EDIT' : data.fileWrite ? '📝 WRITE' : '';
+            const consensus = data.consensus ? ` | ${data.consensus}` : '';
+            consoleMessage = hasFileOps ? `${fileOpType} → ${data.target}${consensus}` : `💬 → ${data.target}${consensus}`;
+        }
+
+        console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${consoleMessage}`);
     }
 
     protected async updateState(operation: string, inputTokens: number, outputTokens: number, cost: number): Promise<void> {
