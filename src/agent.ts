@@ -1,5 +1,5 @@
 import { BaseAgent, AgentState } from './agent-base';
-import { AgentConfig, ProcessResult, ProjectFile } from './types';
+import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { FileUtils } from './utils/file-utils';
@@ -10,6 +10,7 @@ interface ApiResponse {
         code?: string;
         location?: string;
     };
+    fileWrite?: FileWriteRequest;
     targetAgent: string
     reasoning: string;
     notes: string;
@@ -89,7 +90,13 @@ export class Agent extends BaseAgent {
     /**
      * Closes any open braces/brackets in JSON
      */
-    private closeOpenStructures(json: string): string {
+    private closeOpenStructures(json: string, depth: number = 0): string {
+        // Prevent infinite recursion
+        if (depth > 3) {
+            console.error(`[Agent] Truncation recovery failed after ${depth} attempts, giving up`);
+            return '{}'; // Return minimal valid JSON
+        }
+
         let result = json;
 
         // Count open braces and brackets
@@ -122,15 +129,22 @@ export class Agent extends BaseAgent {
             }
         }
 
-        // If we're mid-string, we're in trouble - truncate before it
+        // If we're mid-string, truncate to last complete property
         if (inString) {
-            // Find last complete string
-            let lastQuote = result.lastIndexOf('"', result.length - 2);
-            if (lastQuote > 0) {
-                result = result.substring(0, lastQuote + 1);
-                console.warn(`[Agent] Truncated unclosed string, now ${result.length} chars`);
-                // Recount after truncation
-                return this.closeOpenStructures(result);
+            // Find last comma or opening brace - safer truncation points
+            let lastComma = result.lastIndexOf(',');
+            let lastBrace = result.lastIndexOf('{');
+            let truncatePoint = Math.max(lastComma, lastBrace);
+
+            if (truncatePoint > 0) {
+                result = result.substring(0, truncatePoint + 1);
+                console.warn(`[Agent] Truncated at position ${truncatePoint}, depth ${depth}`);
+                // Recurse with depth limit
+                return this.closeOpenStructures(result, depth + 1);
+            } else {
+                // Can't find safe point, return minimal JSON
+                console.error(`[Agent] No safe truncation point found`);
+                return '{}';
             }
         }
 
@@ -367,19 +381,29 @@ export class Agent extends BaseAgent {
 
             await this.updateState('process_file', tokens.input, tokens.output, cost);
             
+            // Validate target agent - if undefined or not in available list, pick first available
+            let targetAgent = response.targetAgent;
+            if (!targetAgent || !availableTargets.includes(targetAgent)) {
+                console.warn(`[Agent:${this.config.name}] Invalid target "${targetAgent}", defaulting to ${availableTargets[0]}`);
+                targetAgent = availableTargets[0];
+            }
+
             await this.log('Processed file', {
                 stage: file.currentStage,
                 changes: response.changes,
-                target: response.targetAgent,
+                target: targetAgent,
                 reasoning: response.reasoning,
-                notes: response.notes
+                notes: response.notes,
+                consensus: response.consensus,
+                fileWrite: response.fileWrite
             });
 
             return {
                 accepted: true,
-                targetAgent: response.targetAgent,
+                targetAgent: targetAgent,
                 reasoning: response.reasoning,
                 changes: response.changes,
+                fileWrite: response.fileWrite,
                 notes: response.notes,
                 consensus: response.consensus,
                 cost,
