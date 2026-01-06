@@ -711,15 +711,30 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             }
         }
 
-        // Update nextAction based on consensus state
-        if (context.discussionSummary.consensusReached) {
+        // Update phase and nextAction based on consensus state
+        const currentAgreeCount = Object.values(consensusSignals || {}).filter(s => s === 'agree').length;
+
+        if (context.discussionSummary.consensusReached && currentAgreeCount >= 4) {
+            // Maintain consensus - stay in implementation mode
+            context.currentPhase = 'code_review';
             context.nextAction = {
                 type: 'apply_changes',
                 reason: 'Consensus reached - implement agreed design',
                 targetAgent: undefined
             };
+        } else if (context.discussionSummary.consensusReached && currentAgreeCount < 4) {
+            // Lost consensus - back to discussion
+            console.log(`\n⚠️  Consensus lost (${currentAgreeCount}/5 agree). Returning to discussion phase.\n`);
+            context.currentPhase = 'discussion';
+            context.discussionSummary.consensusReached = false;
+            context.nextAction = {
+                type: 'continue_discussion',
+                reason: `Consensus lost - only ${currentAgreeCount} agents agree now`,
+                targetAgent: undefined
+            };
         } else {
-            const agreeCount = Object.values(consensusSignals || {}).filter(s => s === 'agree').length;
+            // Never had consensus or still building toward it
+            context.currentPhase = 'discussion';
             const disagreeCount = Object.values(consensusSignals || {}).filter(s => s === 'disagree').length;
 
             if (disagreeCount >= 2) {
@@ -728,10 +743,10 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
                     reason: `${disagreeCount} agents disagree - need more alignment`,
                     targetAgent: undefined
                 };
-            } else if (agreeCount >= 2) {
+            } else if (currentAgreeCount >= 2) {
                 context.nextAction = {
                     type: 'continue_discussion',
-                    reason: `Making progress (${agreeCount} agree) - close to consensus`,
+                    reason: `Making progress (${currentAgreeCount} agree) - close to consensus`,
                     targetAgent: undefined
                 };
             } else {
@@ -1076,10 +1091,8 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         this.cycleCosts.push(cycleCost);
         await this.updateCostSummary();
 
-        // Save consensus signals and extract key decisions from discussion
-        if (Object.keys(consensusSignals).length > 0) {
-            await this.updateContextAtEnd(consensusSignals, projectFile.history);
-        }
+        // Always save context and extract key decisions (even if no consensus signals)
+        await this.updateContextAtEnd(consensusSignals, projectFile.history);
     }
 
     private async generateNarrativeSummary(): Promise<void> {
