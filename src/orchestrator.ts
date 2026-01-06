@@ -337,10 +337,11 @@ Write the TypeScript code for SharedMemoryCache. Make it:
 - ✅ Usable in next cycle (simple API)
 - ✅ Observable (logs everything)
 
-**HOW TO WRITE CODE TO DISK:**
+**⚠️ CRITICAL: HOW TO WRITE CODE TO DISK ⚠️**
 
-Instead of embedding code in the "changes.code" field (which gets truncated for large files),
-use the NEW "fileWrite" capability:
+DO NOT embed code in "changes.code" - it will be truncated and cause JSON parse errors!
+
+REQUIRED: Use the "fileWrite" capability for ALL code implementations:
 
 \`\`\`json
 {
@@ -356,17 +357,20 @@ use the NEW "fileWrite" capability:
 }
 \`\`\`
 
-**What happens next:**
-1. Orchestrator writes your code to a temp file
-2. Runs \`tsc --noEmit\` to validate TypeScript
-3. If ✅ valid: saves to actual location, tracks in context
-4. If ❌ invalid: shows you the errors, code NOT saved
+**DO NOT include a "changes" field when writing code files.**
+**Use ONLY "fileWrite" for TypeScript implementations.**
 
-**Important:**
-- Use "fileWrite" for code files (src/**/*.ts)
-- Full file content (no truncation issues!)
-- Compilation errors will be shown immediately
-- Pass the baton to next agent for review
+**What happens when you use fileWrite:**
+1. ✅ No JSON truncation (content can be any size)
+2. ✅ Automatic TypeScript validation (\`tsc --noEmit\`)
+3. ✅ Only saved if compilation succeeds
+4. ✅ Errors shown immediately if code is invalid
+5. ✅ Tracked in context for next run
+
+**If you want to discuss/review without writing:**
+- Set "fileWrite": null
+- Use "reasoning" and "notes" to explain your thoughts
+- Signal "consensus": "building" to continue discussion
 
 When implementation is complete and validated, signal consensus="agree".
 

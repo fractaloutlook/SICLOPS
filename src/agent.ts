@@ -43,20 +43,62 @@ export class Agent extends BaseAgent {
     }
 
     /**
-     * Attempts to recover truncated JSON by closing open strings and objects
+     * Attempts to recover truncated JSON by finding the last valid JSON structure
      */
     private attemptJsonRecovery(truncatedJson: string): string {
-        let recovered = truncatedJson;
+        // Strategy: Find the last position where we have a complete, valid JSON property
+        // Work backwards from the end to find safe truncation points
 
-        // Find if we're inside an unclosed string
+        let bestRecovery = truncatedJson;
+
+        // Try to find patterns like: "key": "value",\n or "key": value,\n
+        // These are safe places to truncate
+        const safePatterns = [
+            /,\s*$/,          // Ends with comma (safe to remove last incomplete property)
+            /\},\s*$/,        // Ends with },
+            /\],\s*$/,        // Ends with ],
+            /"\s*,\s*$/,      // Ends with string and comma
+            /\d+\s*,\s*$/,    // Ends with number and comma
+            /true\s*,\s*$/,   // Ends with true and comma
+            /false\s*,\s*$/,  // Ends with false and comma
+            /null\s*,\s*$/    // Ends with null and comma
+        ];
+
+        // Work backwards to find a safe truncation point
+        for (let cutoff = truncatedJson.length; cutoff > 0; cutoff -= 50) {
+            const candidate = truncatedJson.substring(0, cutoff);
+
+            // Check if this ends with a safe pattern
+            for (const pattern of safePatterns) {
+                if (pattern.test(candidate)) {
+                    // Remove trailing comma if present
+                    bestRecovery = candidate.replace(/,\s*$/, '');
+                    console.warn(`[Agent] Found safe truncation point at ${cutoff} chars`);
+
+                    // Close any open structures
+                    return this.closeOpenStructures(bestRecovery);
+                }
+            }
+        }
+
+        // Fallback: just try to close structures
+        console.warn(`[Agent] No safe truncation point found, attempting to close structures`);
+        return this.closeOpenStructures(truncatedJson);
+    }
+
+    /**
+     * Closes any open braces/brackets in JSON
+     */
+    private closeOpenStructures(json: string): string {
+        let result = json;
+
+        // Count open braces and brackets
+        let braceCount = 0;
+        let bracketCount = 0;
         let inString = false;
-        let stringChar = '';
         let escapeNext = false;
-        let lastCompletePos = 0;
 
-        for (let i = 0; i < recovered.length; i++) {
-            const char = recovered[i];
-
+        for (const char of result) {
             if (escapeNext) {
                 escapeNext = false;
                 continue;
@@ -67,43 +109,42 @@ export class Agent extends BaseAgent {
                 continue;
             }
 
-            if ((char === '"' || char === "'") && !inString) {
-                inString = true;
-                stringChar = char;
-            } else if (char === stringChar && inString) {
-                inString = false;
-                stringChar = '';
-                lastCompletePos = i;
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString) {
+                if (char === '{') braceCount++;
+                if (char === '}') braceCount--;
+                if (char === '[') bracketCount++;
+                if (char === ']') bracketCount--;
             }
         }
 
-        // If we're inside a string, close it and truncate to last complete position
+        // If we're mid-string, we're in trouble - truncate before it
         if (inString) {
-            console.warn(`[Agent] Truncated mid-string, closing at position ${lastCompletePos}`);
-            recovered = recovered.substring(0, lastCompletePos + 1);
+            // Find last complete string
+            let lastQuote = result.lastIndexOf('"', result.length - 2);
+            if (lastQuote > 0) {
+                result = result.substring(0, lastQuote + 1);
+                console.warn(`[Agent] Truncated unclosed string, now ${result.length} chars`);
+                // Recount after truncation
+                return this.closeOpenStructures(result);
+            }
         }
 
-        // Count open braces and close them
-        let braceCount = 0;
-        let bracketCount = 0;
-        for (const char of recovered) {
-            if (char === '{') braceCount++;
-            if (char === '}') braceCount--;
-            if (char === '[') bracketCount++;
-            if (char === ']') bracketCount--;
-        }
-
-        // Close any unclosed brackets/braces
+        // Close any unclosed structures
         while (bracketCount > 0) {
-            recovered += ']';
+            result += ']';
             bracketCount--;
         }
         while (braceCount > 0) {
-            recovered += '}';
+            result += '}';
             braceCount--;
         }
 
-        return recovered;
+        return result;
     }
 
     private cleanJsonResponse(response: string): string {
