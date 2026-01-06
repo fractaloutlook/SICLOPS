@@ -388,12 +388,15 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             console.log(this.generateBriefing(context));
             console.log(`\n🔄 Resuming from run #${context.runNumber}...\n`);
 
-            // Restore agent states
+            // Restore agent states from previous run
             for (const [agentName, state] of Object.entries(context.agentStates)) {
                 const agent = this.agents.get(agentName);
                 if (agent) {
-                    // Restore agent state here if needed
-                    // For now, agents will start fresh but context is preserved
+                    agent.restoreState({
+                        timesProcessed: state.timesProcessed,
+                        totalCost: state.totalCost
+                    });
+                    console.log(`   Restored ${agentName}: ${state.timesProcessed} turns, $${state.totalCost.toFixed(4)}`);
                 }
             }
 

@@ -1,23 +1,84 @@
 {
   "version": "v1.0",
-  "runNumber": 1,
+  "runNumber": 4,
   "startedAt": "2026-01-06T11:20:53.119Z",
-  "lastUpdated": "2026-01-06T11:20:53.119Z",
-  "currentPhase": "discussion",
+  "lastUpdated": "2026-01-06T11:39:25.272Z",
+  "currentPhase": "code_review",
   "discussionSummary": {
     "topic": "Framework Development Priorities",
     "keyDecisions": [],
-    "consensusReached": false,
-    "consensusSignals": {}
+    "consensusReached": true,
+    "consensusSignals": {
+      "Alex": "building",
+      "Jordan": "agree",
+      "Sam": "agree",
+      "Morgan": "agree",
+      "Pierre": "agree"
+    }
   },
   "codeChanges": [],
-  "agentStates": {},
+  "agentStates": {
+    "Alex": {
+      "timesProcessed": 6,
+      "totalCost": 0.06270300000000001,
+      "canProcess": false
+    },
+    "Sam": {
+      "timesProcessed": 3,
+      "totalCost": 0.029943,
+      "canProcess": true
+    },
+    "Morgan": {
+      "timesProcessed": 2,
+      "totalCost": 0.019175,
+      "canProcess": true
+    },
+    "Jordan": {
+      "timesProcessed": 6,
+      "totalCost": 0.055754,
+      "canProcess": false
+    },
+    "Pierre": {
+      "timesProcessed": 2,
+      "totalCost": 0.022699,
+      "canProcess": true
+    }
+  },
   "nextAction": {
     "type": "continue_discussion",
     "reason": "Starting fresh discussion",
     "targetAgent": "Alex"
   },
-  "history": [],
-  "totalCost": 0,
+  "history": [
+    {
+      "runNumber": 2,
+      "phase": "discussion",
+      "summary": "Completed 0 cycle(s) in discussion phase",
+      "cost": 0.49784599999999996,
+      "timestamp": "2026-01-06T11:35:59.423Z"
+    },
+    {
+      "runNumber": 2,
+      "phase": "discussion",
+      "summary": "Completed 1 cycle(s) in discussion phase",
+      "cost": 0.49784599999999996,
+      "timestamp": "2026-01-06T11:36:00.464Z"
+    },
+    {
+      "runNumber": 3,
+      "phase": "discussion",
+      "summary": "Completed 0 cycle(s) in discussion phase",
+      "cost": 0.19027399999999997,
+      "timestamp": "2026-01-06T11:39:17.550Z"
+    },
+    {
+      "runNumber": 3,
+      "phase": "discussion",
+      "summary": "Completed 1 cycle(s) in discussion phase",
+      "cost": 0.19027399999999997,
+      "timestamp": "2026-01-06T11:39:18.575Z"
+    }
+  ],
+  "totalCost": 1.37624,
   "humanNotes": ""
 }

@@ -41,6 +41,11 @@ export abstract class BaseAgent {
         return this.state.timesProcessed < 6;  // Increased for conversation mode
     }
 
+    restoreState(savedState: { timesProcessed: number; totalCost: number }): void {
+        this.state.timesProcessed = savedState.timesProcessed;
+        this.state.totalCost = savedState.totalCost;
+    }
+
     protected async log(message: string, data?: any): Promise<void> {
         const timestamp = new Date();
         const logEntry = {

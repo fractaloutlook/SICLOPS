@@ -258,7 +258,7 @@ export class Agent extends BaseAgent {
                 CONVERSATION SO FAR:
                 ${historyText || "You're first to speak."}
 
-                Team members: ${availableTargets.join(', ')}
+                AVAILABLE team members (ONLY choose from this list): ${availableTargets.join(', ')}
 
                 Your turn to contribute to the discussion!
 
@@ -278,7 +278,7 @@ export class Agent extends BaseAgent {
                         "code": "",
                         "location": "discussion"
                     },
-                    "targetAgent": "Name of who should speak next (choose from: ${availableTargets.join(', ')})",
+                    "targetAgent": "REQUIRED: Choose ONLY from available list above: ${availableTargets.join(', ')}",
                     "reasoning": "Brief note on who should speak next and why",
                     "notes": "Additional thoughts",
                     "consensus": "agree | building | disagree"
