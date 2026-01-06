@@ -57,3 +57,46 @@ export interface ProcessResult {
         output: number;
     };
 }
+
+export interface CodeChange {
+    file: string;
+    action: 'create' | 'edit' | 'delete';
+    content: string;
+    appliedAt: string | null;
+    validatedAt: string | null;
+    status: 'pending' | 'applied' | 'validated' | 'failed';
+}
+
+export interface OrchestratorContext {
+    version: string;
+    runNumber: number;
+    startedAt: string;
+    lastUpdated: string;
+    currentPhase: 'discussion' | 'code_review' | 'apply_changes' | 'testing';
+    discussionSummary: {
+        topic: string;
+        keyDecisions: string[];
+        consensusReached: boolean;
+        consensusSignals: Record<string, string>;
+    };
+    codeChanges: CodeChange[];
+    agentStates: Record<string, {
+        timesProcessed: number;
+        totalCost: number;
+        canProcess: boolean;
+    }>;
+    nextAction: {
+        type: 'continue_discussion' | 'apply_changes' | 'restart_with_new_code' | 'manual_review';
+        reason: string;
+        targetAgent?: string;
+    };
+    history: Array<{
+        runNumber: number;
+        phase: string;
+        summary: string;
+        cost: number;
+        timestamp: string;
+    }>;
+    totalCost: number;
+    humanNotes: string;
+}

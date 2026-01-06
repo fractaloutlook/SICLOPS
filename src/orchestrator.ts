@@ -3,7 +3,7 @@ import { FileUtils } from './utils/file-utils';
 import { AGENT_CONFIGS, API_KEYS } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { AgentConfig, ProjectFile, Changes } from './types';
+import { AgentConfig, ProjectFile, Changes, OrchestratorContext } from './types';
 import { generateVersion } from './utils/version-utils';
 
 interface OrchestratorConfig {
@@ -31,27 +31,208 @@ export class Orchestrator {
     private initializeAgents(): void {
         for (const [key, agentConfig] of Object.entries(AGENT_CONFIGS)) {
             if (key === 'orchestrator') continue;
-            
-            const client = agentConfig.model.startsWith('claude') 
-                ? this.anthropicClient 
+
+            const client = agentConfig.model.startsWith('claude')
+                ? this.anthropicClient
                 : this.openaiClient;
-                
+
             this.agents.set(
-                agentConfig.name, 
+                agentConfig.name,
                 new Agent(agentConfig, this.config.logDirectory, client)
             );
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // CONTEXT MANAGEMENT (Phase 1: State Persistence)
+    // ═══════════════════════════════════════════════════════════════
+
+    private getContextPath(): string {
+        return `${this.config.logDirectory}/../state/orchestrator-context.json`;
+    }
+
+    async loadContext(): Promise<OrchestratorContext | null> {
+        try {
+            const contextPath = this.getContextPath();
+            const content = await FileUtils.readFile(contextPath);
+            const context = JSON.parse(content) as OrchestratorContext;
+            console.log(`📖 Loaded context from run #${context.runNumber}`);
+            return context;
+        } catch (error) {
+            // No context file exists - this is a fresh start
+            return null;
+        }
+    }
+
+    async saveContext(context: OrchestratorContext): Promise<void> {
+        const contextPath = this.getContextPath();
+        await FileUtils.ensureDir(`${this.config.logDirectory}/../state`);
+        await FileUtils.writeFile(contextPath, JSON.stringify(context, null, 2));
+    }
+
+    async initializeContext(): Promise<OrchestratorContext> {
+        const context: OrchestratorContext = {
+            version: 'v1.0',
+            runNumber: 1,
+            startedAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            currentPhase: 'discussion',
+            discussionSummary: {
+                topic: 'Framework Development Priorities',
+                keyDecisions: [],
+                consensusReached: false,
+                consensusSignals: {}
+            },
+            codeChanges: [],
+            agentStates: {},
+            nextAction: {
+                type: 'continue_discussion',
+                reason: 'Starting fresh discussion',
+                targetAgent: 'Alex'
+            },
+            history: [],
+            totalCost: 0,
+            humanNotes: ''
+        };
+
+        await this.saveContext(context);
+        console.log(`🆕 Initialized fresh context for run #1`);
+        return context;
+    }
+
+    async updateContext(updates: Partial<OrchestratorContext>): Promise<void> {
+        let context = await this.loadContext();
+        if (!context) {
+            context = await this.initializeContext();
+        }
+
+        Object.assign(context, updates);
+        context.lastUpdated = new Date().toISOString();
+        await this.saveContext(context);
+    }
+
+    generateBriefing(context: OrchestratorContext): string {
+        const lastRun = context.history[context.history.length - 1];
+        const agentList = Object.entries(context.agentStates)
+            .map(([name, state]) => `  - ${name}: ${state.timesProcessed} turns, $${state.totalCost.toFixed(4)}`)
+            .join('\n');
+
+        return `
+╔════════════════════════════════════════════════════════════════╗
+║  ORCHESTRATOR BRIEFING - RUN #${context.runNumber}                        ║
+╚════════════════════════════════════════════════════════════════╝
+
+PREVIOUS RUN:
+${lastRun ? lastRun.summary : 'This is the first run'}
+
+CURRENT PHASE: ${context.currentPhase}
+
+DISCUSSION TOPIC:
+${context.discussionSummary.topic}
+
+KEY DECISIONS SO FAR:
+${context.discussionSummary.keyDecisions.length > 0
+    ? context.discussionSummary.keyDecisions.map((d, i) => `  ${i + 1}. ${d}`).join('\n')
+    : '  (None yet)'}
+
+CONSENSUS STATUS:
+${Object.entries(context.discussionSummary.consensusSignals).length > 0
+    ? Object.entries(context.discussionSummary.consensusSignals)
+        .map(([agent, signal]) => `  - ${agent}: ${signal}`)
+        .join('\n')
+    : '  (No signals yet)'}
+
+NEXT ACTION: ${context.nextAction.type}
+Reason: ${context.nextAction.reason}
+
+AGENT STATES:
+${agentList || '  (No agents processed yet)'}
+
+TOTAL COST SO FAR: $${context.totalCost.toFixed(4)}
+
+HUMAN NOTES:
+${context.humanNotes || '(None)'}
+
+═══════════════════════════════════════════════════════════════════
+`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+
     async runCycles(): Promise<void> {
+        // Check for existing context
+        const context = await this.loadContext();
+
+        if (context) {
+            // Resuming from previous run
+            console.log(this.generateBriefing(context));
+            console.log(`\n🔄 Resuming from run #${context.runNumber}...\n`);
+
+            // Restore agent states
+            for (const [agentName, state] of Object.entries(context.agentStates)) {
+                const agent = this.agents.get(agentName);
+                if (agent) {
+                    // Restore agent state here if needed
+                    // For now, agents will start fresh but context is preserved
+                }
+            }
+
+            // Increment run number
+            context.runNumber += 1;
+            await this.saveContext(context);
+        } else {
+            // Fresh start
+            console.log(`\n🆕 Starting fresh run #1\n`);
+            await this.initializeContext();
+        }
+
         while (this.cycleCount < this.config.maxCycles) {
             await this.runCycle();
             this.cycleCount++;
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        
+
         await this.generateFinalSummary();
         await this.generateNarrativeSummary();
+
+        // Update context with final state
+        await this.updateContextAtEnd();
+    }
+
+    private async updateContextAtEnd(): Promise<void> {
+        const context = await this.loadContext();
+        if (!context) return;
+
+        // Capture agent states
+        const agentStates: Record<string, any> = {};
+        for (const [name, agent] of this.agents.entries()) {
+            const state = agent.getState();
+            agentStates[name] = {
+                timesProcessed: state.timesProcessed,
+                totalCost: state.totalCost,
+                canProcess: agent.canProcess()
+            };
+        }
+
+        // Calculate total cost
+        const totalCost = this.cycleCosts.reduce((sum, c) => sum + c.total, 0);
+
+        // Add to history
+        context.history.push({
+            runNumber: context.runNumber,
+            phase: context.currentPhase,
+            summary: `Completed ${this.cycleCount} cycle(s) in ${context.currentPhase} phase`,
+            cost: totalCost,
+            timestamp: new Date().toISOString()
+        });
+
+        // Update context
+        context.agentStates = agentStates;
+        context.totalCost += totalCost;
+        context.lastUpdated = new Date().toISOString();
+
+        await this.saveContext(context);
+        console.log(`\n💾 Saved context for run #${context.runNumber}`);
     }
 
     private async runCycle(): Promise<void> {
@@ -64,34 +245,58 @@ export class Orchestrator {
 
         // Initial project file setup
         const projectFile: ProjectFile = {
-            content: `TEAM DISCUSSION: Framework Development Priorities
+            content: `TEAM DISCUSSION: Pick ONE Feature to Implement
 
 You are part of a self-improving AI team building a virtual assistant framework.
 
 CURRENT SYSTEM:
-- Built in TypeScript
-- Uses Claude API (Anthropic) and OpenAI API
+- Built in TypeScript with Claude/OpenAI API
 - Multi-agent orchestration with cost tracking
-- Agents can spawn other agents for subtasks
-- Can write scripts for repetitive work
+- Context persistence across runs (NEW!)
+- Consensus-based decision making
+
+NEW CAPABILITY:
+The orchestrator now saves your progress between runs! Check docs/ORCHESTRATOR_GUIDE.md for details.
+Your discussions continue where they left off. No more starting from scratch!
 
 YOUR HUMAN USER:
-- Values feature set and development speed over perfection
-- Will actually use what you build
-- Wants a great virtual assistant framework
-
-RECENT ACHIEVEMENT:
-- Cost analysis system implemented and working
+- Values shipping features over endless discussion
+- Wants you to work autonomously (less human intervention)
+- Prefers robust, simple solutions over over-engineered ones
 
 YOUR TASK:
-Discuss as a team what features/improvements your framework needs next.
-- Build a prioritized list of what to implement
-- Debate the merits of different approaches
-- Reach consensus on top 3-5 priorities
-- Reference each other by name (Alex, Sam, Morgan, Jordan, Pierre)
-- Think out loud about tradeoffs
+Pick ONE feature to implement fully. Choose something that helps you:
+1. Function longer without human intervention
+2. Maintain context across restarts
+3. Coordinate better as a team
+4. Recover from errors gracefully
 
-REMEMBER: You're building this FOR a real user who values speed. Don't overthink logging or type safety - focus on useful features.`,
+SUGGESTED FIRST FEATURE:
+Based on previous discussions, consider: **Shared Memory Cache**
+- Helps agents share context across runs
+- Token-aware caching (prevent memory overflow)
+- Priority-based pruning (keep important stuff)
+- Security classifications (protect sensitive data)
+
+OTHER OPTIONS (pick ONE):
+- Enhanced state serialization
+- Agent handoff protocol (prevent stepping on toes)
+- Code validation pipeline (catch errors before applying)
+- Error recovery system (retry with backoff)
+
+DISCUSSION GOALS:
+1. Debate which ONE feature to build first
+2. Reach consensus (4/5 agents agree)
+3. Define SPECIFIC implementation details
+4. Be ready to write actual working code
+
+IMPORTANT:
+- Focus on ONE feature only
+- Don't over-engineer (Jordan: MVP mode!)
+- Be direct, challenge ideas, disagree when needed
+- Signal consensus honestly: agree/building/disagree
+
+Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`,
             currentStage: 'team_discussion',
             history: []
         };

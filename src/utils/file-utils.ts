@@ -70,5 +70,15 @@ export class FileUtils {
             return [];
         }
     }
-    
+
+    // Alias for ensureDirectoryExists
+    static async ensureDir(dirPath: string): Promise<void> {
+        return this.ensureDirectoryExists(dirPath);
+    }
+
+    // Read file contents as string
+    static async readFile(filePath: string): Promise<string> {
+        return await fs.readFile(filePath, 'utf-8');
+    }
+
 }
