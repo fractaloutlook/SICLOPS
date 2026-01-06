@@ -157,6 +157,96 @@ ${context.humanNotes || '(None)'}
 `;
     }
 
+    /**
+     * Detects if consensus was reached, accounting for agents who hit processing limits.
+     * Consensus is reached when 4+ agents agree or signal "agree", even if some couldn't respond.
+     */
+    private hasConsensus(context: OrchestratorContext): boolean {
+        const signals = context.discussionSummary.consensusSignals;
+        const agreeCount = Object.values(signals).filter(s => s === 'agree').length;
+
+        // 4 out of 5 is consensus
+        if (agreeCount >= 4) return true;
+
+        // Alternative: If we have 3 agrees and 1 "building" (not blocking), consider it effective consensus
+        const buildingCount = Object.values(signals).filter(s => s === 'building').length;
+        if (agreeCount >= 3 && buildingCount >= 1 && signals && Object.keys(signals).length >= 4) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Generates implementation-focused prompt with design decisions from discussion.
+     */
+    private generateImplementationPrompt(context: OrchestratorContext): string {
+        const decisions = context.discussionSummary.keyDecisions.length > 0
+            ? context.discussionSummary.keyDecisions.map((d, i) => `${i + 1}. ${d}`).join('\n')
+            : 'See discussion summary below.';
+
+        return `IMPLEMENTATION TASK: Shared Memory Cache
+
+You are part of a self-improving AI team building a virtual assistant framework.
+
+CONSENSUS REACHED ✅
+Your team has agreed on the design for SharedMemoryCache. Now it's time to implement it!
+
+APPROVED DESIGN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Feature**: Shared Memory Cache (Three-Bucket LRU)
+
+**Purpose**: Help agents share context across runs, token-aware caching, prevent memory overflow
+
+**Core Design**:
+- Three classification buckets: transient / decision / sensitive
+- LRU (Least Recently Used) eviction within each bucket
+- TTL (Time To Live) per bucket type
+- Optional reason field for observability (write-time documentation only)
+- 50k token hard cap total
+- Sensitive bucket gets 10% of cache (~5k tokens), never auto-evicts
+- Aggressive eviction logging from day one
+
+**Technical Details**:
+- File location: src/memory/shared-cache.ts
+- Interface: SharedMemoryCache class
+- Methods needed:
+  - store(key, value, bucket, reason?)
+  - retrieve(key)
+  - evict(key)
+  - getStats()
+- Instrumentation: log every write, access, eviction event
+
+**Implementation Timeline**:
+- Core LRU logic: 2-3 days
+- Eviction logging: included from start
+- Integration: ready for use in next discussion cycle
+
+**Key Constraints** (DO NOT violate):
+1. Reason field is documentation-only, NEVER use for eviction logic
+2. If iteration needed, tune heuristics first (TTLs, access weights)
+3. Don't over-engineer - this is MVP, ship fast
+4. Must be usable by agents in their NEXT discussion
+
+**Your Role**:
+${AGENT_CONFIGS.Morgan ? '**Morgan**: You own the core implementation. Build working code.' : ''}
+${AGENT_CONFIGS.Sam ? '**Sam**: Review for safety, ensure logging is observable.' : ''}
+${AGENT_CONFIGS.Jordan ? '**Jordan**: Verify guardrails (reason field read-only, no policy matrix creep).' : ''}
+${AGENT_CONFIGS.Alex ? '**Alex**: Check DX - will agents actually USE this easily?' : ''}
+${AGENT_CONFIGS.Pierre ? '**Pierre**: Keep scope tight, ensure we ship something usable.' : ''}
+
+IMMEDIATE GOAL:
+Write the TypeScript code for SharedMemoryCache. Make it:
+- ✅ TypeScript-clean (will be compiled before use)
+- ✅ Documented (inline comments for key decisions)
+- ✅ Usable in next cycle (simple API)
+- ✅ Observable (logs everything)
+
+When you're done, signal consensus="agree" so we can compile and integrate.
+
+Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
+    }
+
     // ═══════════════════════════════════════════════════════════════
 
     async runCycles(): Promise<void> {
@@ -199,7 +289,7 @@ ${context.humanNotes || '(None)'}
         await this.updateContextAtEnd();
     }
 
-    private async updateContextAtEnd(): Promise<void> {
+    private async updateContextAtEnd(consensusSignals?: Record<string, string>): Promise<void> {
         const context = await this.loadContext();
         if (!context) return;
 
@@ -216,6 +306,17 @@ ${context.humanNotes || '(None)'}
 
         // Calculate total cost
         const totalCost = this.cycleCosts.reduce((sum, c) => sum + c.total, 0);
+
+        // Update consensus signals if provided
+        if (consensusSignals && Object.keys(consensusSignals).length > 0) {
+            context.discussionSummary.consensusSignals = consensusSignals;
+
+            // Check if consensus was reached
+            const agreeCount = Object.values(consensusSignals).filter(s => s === 'agree').length;
+            if (agreeCount >= 4) {
+                context.discussionSummary.consensusReached = true;
+            }
+        }
 
         // Add to history
         context.history.push({
@@ -243,9 +344,22 @@ ${context.humanNotes || '(None)'}
 
         await FileUtils.initializeLogFile(cyclePath);
 
-        // Initial project file setup
-        const projectFile: ProjectFile = {
-            content: `TEAM DISCUSSION: Pick ONE Feature to Implement
+        // Check if we have consensus from previous run and should switch to implementation mode
+        const context = await this.loadContext();
+        let projectFileContent: string;
+        let projectStage: string;
+
+        if (context && this.hasConsensus(context)) {
+            // Implementation mode - consensus reached, time to code!
+            projectFileContent = this.generateImplementationPrompt(context);
+            projectStage = 'implementation';
+            console.log(`\n✅ Consensus detected! Switching to IMPLEMENTATION mode.\n`);
+
+            // Update context to reflect phase change
+            await this.updateContext({ currentPhase: 'code_review' });
+        } else {
+            // Discussion mode - still deciding what to build
+            projectFileContent = `TEAM DISCUSSION: Pick ONE Feature to Implement
 
 You are part of a self-improving AI team building a virtual assistant framework.
 
@@ -296,8 +410,14 @@ IMPORTANT:
 - Be direct, challenge ideas, disagree when needed
 - Signal consensus honestly: agree/building/disagree
 
-Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`,
-            currentStage: 'team_discussion',
+Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
+            projectStage = 'team_discussion';
+        }
+
+        // Initial project file setup
+        const projectFile: ProjectFile = {
+            content: projectFileContent,
+            currentStage: projectStage,
             history: []
         };
 
@@ -419,6 +539,11 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`,
 
         this.cycleCosts.push(cycleCost);
         await this.updateCostSummary();
+
+        // Save consensus signals to context
+        if (Object.keys(consensusSignals).length > 0) {
+            await this.updateContextAtEnd(consensusSignals);
+        }
     }
 
     private async generateNarrativeSummary(): Promise<void> {

@@ -1,0 +1,72 @@
+{
+  "version": "v1.0",
+  "runNumber": 1,
+  "startedAt": "2026-01-06T10:23:46.464Z",
+  "lastUpdated": "2026-01-06T10:28:43.628Z",
+  "currentPhase": "discussion",
+  "discussionSummary": {
+    "topic": "Framework Development Priorities",
+    "keyDecisions": [
+      "Build Shared Memory Cache with three-bucket LRU design (transient/decision/sensitive)",
+      "50k token hard cap, sensitive bucket gets 10% (~5k tokens)",
+      "Optional reason field for observability (documentation-only, never affects eviction logic)",
+      "TTL per bucket type with LRU eviction within buckets",
+      "Aggressive eviction logging from day one",
+      "Iteration constraint: tune heuristics (TTLs, access weights) before changing architecture",
+      "One structured log review in week 3-4 to validate design",
+      "Implementation timeline: 2-3 days for core LRU"
+    ],
+    "consensusReached": true,
+    "consensusSignals": {
+      "Jordan": "agree",
+      "Pierre": "agree",
+      "Alex": "agree",
+      "Sam": "building",
+      "Morgan": "agree"
+    }
+  },
+  "codeChanges": [],
+  "agentStates": {
+    "Alex": {
+      "timesProcessed": 5,
+      "totalCost": 0.063914,
+      "canProcess": true
+    },
+    "Sam": {
+      "timesProcessed": 6,
+      "totalCost": 0.084562,
+      "canProcess": false
+    },
+    "Morgan": {
+      "timesProcessed": 6,
+      "totalCost": 0.062087,
+      "canProcess": false
+    },
+    "Jordan": {
+      "timesProcessed": 6,
+      "totalCost": 0.079824,
+      "canProcess": false
+    },
+    "Pierre": {
+      "timesProcessed": 2,
+      "totalCost": 0.037704,
+      "canProcess": true
+    }
+  },
+  "nextAction": {
+    "type": "continue_discussion",
+    "reason": "Starting fresh discussion",
+    "targetAgent": "Alex"
+  },
+  "history": [
+    {
+      "runNumber": 1,
+      "phase": "discussion",
+      "summary": "Completed 1 cycle(s) in discussion phase",
+      "cost": 0.3280909999999999,
+      "timestamp": "2026-01-06T10:28:43.628Z"
+    }
+  ],
+  "totalCost": 0.3280909999999999,
+  "humanNotes": ""
+}
