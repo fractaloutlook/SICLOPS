@@ -67,6 +67,13 @@ export abstract class BaseAgent {
         if (message === 'State updated' && data) {
             consoleMessage = `Turn ${data.timesProcessed}/6 | Cost $${data.totalCost.toFixed(4)}`;
         } else if (message === 'Processed file' && data) {
+            // First print the summary of what they said
+            const summary = this.extractMiniSummary(data);
+            if (summary) {
+                console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${summary}`);
+            }
+
+            // Then print the action (who they're passing to)
             const hasFileOps = data.fileRead || data.fileEdit || data.fileWrite;
             const fileOpType = data.fileRead ? '📖 READ' : data.fileEdit ? '✏️ EDIT' : data.fileWrite ? '📝 WRITE' : '';
             const consensus = data.consensus ? ` | ${data.consensus}` : '';
@@ -95,6 +102,44 @@ export abstract class BaseAgent {
             totalCost: this.state.totalCost,
             operation
         });
+    }
+
+    /**
+     * Extract a mini-summary from agent's response for console display.
+     * Tries to get first meaningful sentence, max 80 chars.
+     */
+    private extractMiniSummary(data: any): string | null {
+        // Try notes first (usually has the main point)
+        if (data.notes && typeof data.notes === 'string' && data.notes.length > 15) {
+            return this.truncateSummary(data.notes);
+        }
+
+        // Try reasoning
+        if (data.reasoning && typeof data.reasoning === 'string' && data.reasoning.length > 15) {
+            return this.truncateSummary(data.reasoning);
+        }
+
+        // Try changes.description
+        if (data.changes?.description && typeof data.changes.description === 'string' && data.changes.description.length > 15) {
+            return this.truncateSummary(data.changes.description);
+        }
+
+        return null;
+    }
+
+    private truncateSummary(text: string): string {
+        // Remove markdown, excessive whitespace, newlines
+        let cleaned = text
+            .replace(/[*_`#]/g, '')
+            .replace(/\n+/g, ' ')
+            .trim();
+
+        // Get first sentence or first 80 chars
+        const firstSentence = cleaned.split(/[.!?]\s/)[0];
+        const truncated = firstSentence.substring(0, 80);
+
+        // Add ellipsis if truncated
+        return truncated.length < firstSentence.length ? truncated + '...' : truncated;
     }
 
     private async initializeLogFile(): Promise<void> {
