@@ -711,6 +711,38 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             }
         }
 
+        // Update nextAction based on consensus state
+        if (context.discussionSummary.consensusReached) {
+            context.nextAction = {
+                type: 'apply_changes',
+                reason: 'Consensus reached - implement agreed design',
+                targetAgent: undefined
+            };
+        } else {
+            const agreeCount = Object.values(consensusSignals || {}).filter(s => s === 'agree').length;
+            const disagreeCount = Object.values(consensusSignals || {}).filter(s => s === 'disagree').length;
+
+            if (disagreeCount >= 2) {
+                context.nextAction = {
+                    type: 'continue_discussion',
+                    reason: `${disagreeCount} agents disagree - need more alignment`,
+                    targetAgent: undefined
+                };
+            } else if (agreeCount >= 2) {
+                context.nextAction = {
+                    type: 'continue_discussion',
+                    reason: `Making progress (${agreeCount} agree) - close to consensus`,
+                    targetAgent: undefined
+                };
+            } else {
+                context.nextAction = {
+                    type: 'continue_discussion',
+                    reason: 'Still exploring options',
+                    targetAgent: undefined
+                };
+            }
+        }
+
         // Add to history
         context.history.push({
             runNumber: context.runNumber,
@@ -749,7 +781,14 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             console.log(`\n✅ Consensus detected! Switching to IMPLEMENTATION mode.\n`);
 
             // Update context to reflect phase change
-            await this.updateContext({ currentPhase: 'code_review' });
+            await this.updateContext({
+                currentPhase: 'code_review',
+                nextAction: {
+                    type: 'apply_changes',
+                    reason: 'Consensus reached - ready to implement agreed design',
+                    targetAgent: undefined
+                }
+            });
         } else {
             // Discussion mode - still deciding what to build
             projectFileContent = `TEAM DISCUSSION: Pick ONE Feature to Implement
