@@ -748,18 +748,29 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             return;
         }
 
-        // Start with Alex (UX Visionary)
-        let currentAgent = this.agents.get("Alex");
+        // Pick first available agent (not hardcoded to avoid agents at turn limit)
+        const initialAvailableAgents = Array.from(this.agents.values())
+            .filter(a => a.canProcess())
+            .map(a => a.getName());
+
+        if (initialAvailableAgents.length === 0) {
+            throw new Error('No agents available to start cycle (all at processing limit)');
+        }
+
+        let currentAgent = this.getRandomAvailableAgent(initialAvailableAgents);
         if (!currentAgent) {
             throw new Error('Could not find initial agent');
         }
+
+        console.log(`🎯 Starting with ${currentAgent.getName()} (${initialAvailableAgents.length} agents available)\n`);
 
         // Track consensus signals
         const consensusSignals: Record<string, string> = {};
 
         await this.logCycle(cyclePath, 'Starting cycle', {
             cycleId,
-            initialAgent: currentAgent.getName()
+            initialAgent: currentAgent.getName(),
+            availableAgents: initialAvailableAgents
         });
 
         const cycleCost = { cycle: cycleId, total: 0, logPath: cyclePath };
