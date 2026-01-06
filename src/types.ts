@@ -47,6 +47,7 @@ export interface ProcessResult {
     targetAgent: string;
     accepted: boolean;
     changes?: Changes;  // Optional for conversation mode
+    fileWrite?: FileWriteRequest;  // NEW: Agent can request to write code to disk
     reasoning: string;
     notes?: string;  // Additional context from agent
     consensus?: 'agree' | 'building' | 'disagree';  // Consensus signal
@@ -58,6 +59,13 @@ export interface ProcessResult {
     };
 }
 
+export interface FileWriteRequest {
+    action: 'write_file';
+    filePath: string;
+    content: string;
+    reason: string;
+}
+
 export interface CodeChange {
     file: string;
     action: 'create' | 'edit' | 'delete';
@@ -65,6 +73,7 @@ export interface CodeChange {
     appliedAt: string | null;
     validatedAt: string | null;
     status: 'pending' | 'applied' | 'validated' | 'failed';
+    validationError?: string;
 }
 
 export interface OrchestratorContext {

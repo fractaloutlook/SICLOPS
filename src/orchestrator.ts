@@ -3,7 +3,7 @@ import { FileUtils } from './utils/file-utils';
 import { AGENT_CONFIGS, API_KEYS } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { AgentConfig, ProjectFile, Changes, OrchestratorContext } from './types';
+import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, CodeChange } from './types';
 import { generateVersion } from './utils/version-utils';
 
 interface OrchestratorConfig {
@@ -158,6 +158,101 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Handles file write requests from agents, including TypeScript validation
+     */
+    private async handleFileWrite(fileWrite: FileWriteRequest, agentName: string): Promise<void> {
+        console.log(`\n📝 ${agentName} requesting file write: ${fileWrite.filePath}`);
+        console.log(`   Reason: ${fileWrite.reason}`);
+
+        const context = await this.loadContext();
+        if (!context) {
+            console.error('❌ No context loaded, cannot track code changes');
+            return;
+        }
+
+        // Create code change record
+        const codeChange: CodeChange = {
+            file: fileWrite.filePath,
+            action: fileWrite.filePath.includes('src/') && !await this.fileExists(fileWrite.filePath) ? 'create' : 'edit',
+            content: fileWrite.content,
+            appliedAt: null,
+            validatedAt: null,
+            status: 'pending'
+        };
+
+        try {
+            // Step 1: Write to temporary location for validation
+            const tempPath = `${fileWrite.filePath}.tmp`;
+            await FileUtils.ensureDir(fileWrite.filePath.substring(0, fileWrite.filePath.lastIndexOf('/')));
+            await FileUtils.writeFile(tempPath, fileWrite.content);
+
+            console.log(`   ✓ Wrote to temp file: ${tempPath}`);
+
+            // Step 2: Validate TypeScript compilation
+            console.log(`   🔍 Validating TypeScript compilation...`);
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+
+            try {
+                await execAsync('npx tsc --noEmit', { timeout: 30000 });
+                console.log(`   ✅ TypeScript validation passed!`);
+
+                // Step 3: Move temp file to actual location
+                const fs = await import('fs/promises');
+                await fs.rename(tempPath, fileWrite.filePath);
+
+                codeChange.appliedAt = new Date().toISOString();
+                codeChange.validatedAt = new Date().toISOString();
+                codeChange.status = 'validated';
+
+                console.log(`   💾 Saved to: ${fileWrite.filePath}`);
+
+            } catch (compileError: any) {
+                // Compilation failed
+                const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
+                console.error(`   ❌ TypeScript compilation failed:`);
+                console.error(`   ${errorMsg.substring(0, 500)}`);
+
+                codeChange.status = 'failed';
+                codeChange.validationError = errorMsg;
+
+                // Clean up temp file
+                try {
+                    const fs = await import('fs/promises');
+                    await fs.unlink(tempPath);
+                } catch {}
+
+                console.log(`   ⚠️  File NOT saved due to compilation errors`);
+            }
+
+        } catch (error: any) {
+            console.error(`   ❌ Error handling file write: ${error.message}`);
+            codeChange.status = 'failed';
+            codeChange.validationError = error.message;
+        }
+
+        // Track in context
+        context.codeChanges.push(codeChange);
+        await this.saveContext(context);
+
+        console.log(`   📊 Status: ${codeChange.status}\n`);
+    }
+
+    /**
+     * Check if file exists
+     */
+    private async fileExists(filePath: string): Promise<boolean> {
+        try {
+            const fs = await import('fs/promises');
+            await fs.access(filePath);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Detects if consensus was reached, accounting for agents who hit processing limits.
      * Consensus is reached when 4+ agents agree or signal "agree", even if some couldn't respond.
      */
@@ -242,7 +337,38 @@ Write the TypeScript code for SharedMemoryCache. Make it:
 - ✅ Usable in next cycle (simple API)
 - ✅ Observable (logs everything)
 
-When you're done, signal consensus="agree" so we can compile and integrate.
+**HOW TO WRITE CODE TO DISK:**
+
+Instead of embedding code in the "changes.code" field (which gets truncated for large files),
+use the NEW "fileWrite" capability:
+
+\`\`\`json
+{
+  "fileWrite": {
+    "action": "write_file",
+    "filePath": "src/memory/shared-cache.ts",
+    "content": "<your full TypeScript code here>",
+    "reason": "Initial implementation of SharedMemoryCache"
+  },
+  "target": "Sam",
+  "reasoning": "I've implemented the core cache. Sam, please review for safety.",
+  "consensus": "building"
+}
+\`\`\`
+
+**What happens next:**
+1. Orchestrator writes your code to a temp file
+2. Runs \`tsc --noEmit\` to validate TypeScript
+3. If ✅ valid: saves to actual location, tracks in context
+4. If ❌ invalid: shows you the errors, code NOT saved
+
+**Important:**
+- Use "fileWrite" for code files (src/**/*.ts)
+- Full file content (no truncation issues!)
+- Compilation errors will be shown immediately
+- Pass the baton to next agent for review
+
+When implementation is complete and validated, signal consensus="agree".
 
 Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
     }
@@ -502,6 +628,11 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             // Apply changes if any
             if (result.changes) {
                 projectFile.content = result.changes.code || projectFile.content;
+            }
+
+            // Handle file write requests
+            if (result.fileWrite) {
+                await this.handleFileWrite(result.fileWrite, currentAgent.getName());
             }
 
             // Get next agent
