@@ -576,7 +576,7 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             console.log(this.generateBriefing(context));
             console.log(`\n🔄 Resuming from run #${context.runNumber}...\n`);
 
-            // Restore agent states from previous run
+            // Restore agent states from previous run (costs only)
             for (const [agentName, state] of Object.entries(context.agentStates)) {
                 const agent = this.agents.get(agentName);
                 if (agent) {
@@ -586,6 +586,12 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
                     });
                     console.log(`   Restored ${agentName}: ${state.timesProcessed} turns, $${state.totalCost.toFixed(4)}`);
                 }
+            }
+
+            // Reset turn counts for new cycle (but preserve costs)
+            console.log(`\n🔄 Resetting turn counts for new cycle...\n`);
+            for (const agent of this.agents.values()) {
+                agent.resetTurnsForNewCycle();
             }
 
             // Increment run number

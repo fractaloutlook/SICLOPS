@@ -46,6 +46,10 @@ export abstract class BaseAgent {
         this.state.totalCost = savedState.totalCost;
     }
 
+    resetTurnsForNewCycle(): void {
+        this.state.timesProcessed = 0;
+    }
+
     protected async log(message: string, data?: any): Promise<void> {
         const timestamp = new Date();
         const logEntry = {
