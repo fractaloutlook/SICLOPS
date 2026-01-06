@@ -159,15 +159,16 @@ ${context.humanNotes || '(None)'}
 
     /**
      * Handles file write requests from agents, including TypeScript validation
+     * Returns success status and error message if failed
      */
-    private async handleFileWrite(fileWrite: FileWriteRequest, agentName: string): Promise<void> {
+    private async handleFileWrite(fileWrite: FileWriteRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
         console.log(`\n📝 ${agentName} requesting file write: ${fileWrite.filePath}`);
         console.log(`   Reason: ${fileWrite.reason}`);
 
         const context = await this.loadContext();
         if (!context) {
             console.error('❌ No context loaded, cannot track code changes');
-            return;
+            return { success: false, error: 'No context loaded' };
         }
 
         // Create code change record
@@ -208,6 +209,14 @@ ${context.humanNotes || '(None)'}
 
                 console.log(`   💾 Saved to: ${fileWrite.filePath}`);
 
+                // Track in context
+                context.codeChanges.push(codeChange);
+                await this.saveContext(context);
+
+                console.log(`   📊 Status: ${codeChange.status}\n`);
+
+                return { success: true };
+
             } catch (compileError: any) {
                 // Compilation failed
                 const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
@@ -217,26 +226,37 @@ ${context.humanNotes || '(None)'}
                 codeChange.status = 'failed';
                 codeChange.validationError = errorMsg;
 
-                // Clean up temp file
+                // Save failed attempt for debugging (don't delete it!)
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const failedPath = `${fileWrite.filePath}.failed.${timestamp}.ts`;
                 try {
                     const fs = await import('fs/promises');
-                    await fs.unlink(tempPath);
-                } catch {}
+                    await fs.rename(tempPath, failedPath);
+                    console.log(`   💾 Saved failed attempt to: ${failedPath}`);
+                } catch (e) {
+                    console.error(`   Failed to save failed attempt: ${e}`);
+                }
 
                 console.log(`   ⚠️  File NOT saved due to compilation errors`);
+
+                // CRITICAL: Return error to agent so they know it failed
+                return {
+                    success: false,
+                    error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}`
+                };
             }
 
         } catch (error: any) {
             console.error(`   ❌ Error handling file write: ${error.message}`);
             codeChange.status = 'failed';
             codeChange.validationError = error.message;
+
+            // Track failed attempt
+            context.codeChanges.push(codeChange);
+            await this.saveContext(context);
+
+            return { success: false, error: error.message };
         }
-
-        // Track in context
-        context.codeChanges.push(codeChange);
-        await this.saveContext(context);
-
-        console.log(`   📊 Status: ${codeChange.status}\n`);
     }
 
     /**
@@ -639,7 +659,34 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
 
             // Handle file write requests
             if (result.fileWrite) {
-                await this.handleFileWrite(result.fileWrite, currentAgent.getName());
+                const writeResult = await this.handleFileWrite(result.fileWrite, currentAgent.getName());
+
+                // If file write failed, add error to project history so next agent knows
+                if (!writeResult.success && writeResult.error) {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_write_failed',
+                        notes: `❌ COMPILATION FAILED for ${result.fileWrite.filePath}\n\nErrors:\n${writeResult.error}`,
+                        changes: {
+                            description: 'File write failed - see errors above',
+                            location: result.fileWrite.filePath
+                        }
+                    });
+
+                    console.log(`\n⚠️  Next agent will see compilation errors and can fix them.\n`);
+                } else if (writeResult.success) {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_write_success',
+                        notes: `✅ Successfully saved and validated ${result.fileWrite.filePath}`,
+                        changes: {
+                            description: 'File compiled successfully and saved',
+                            location: result.fileWrite.filePath
+                        }
+                    });
+                }
             }
 
             // Get next agent
