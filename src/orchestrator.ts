@@ -308,10 +308,9 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
             output += `**${step.agent}:**\n`;
 
             if (isConversation) {
-                // For conversations, show description as quote
+                // For conversations, show full description as quote
                 if (step.changes.description) {
-                    const preview = step.changes.description.substring(0, 300);
-                    output += `> ${preview}${step.changes.description.length > 300 ? '...' : ''}\n\n`;
+                    output += `> ${step.changes.description}\n\n`;
                 }
 
                 // Only show code if it exists and looks intentional (not empty)
@@ -337,7 +336,7 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
 
             // Show reasoning in small text
             if (step.notes && step.notes !== step.changes.description) {
-                output += `*Reasoning: ${step.notes.substring(0, 150)}...*\n\n`;
+                output += `*Reasoning: ${step.notes}*\n\n`;
             }
         });
 

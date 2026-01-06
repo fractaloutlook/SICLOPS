@@ -279,10 +279,10 @@ export class Agent extends BaseAgent {
 
     private calculateClaudeCost(inputTokens: number, outputTokens: number): number {
         if (this.config.model.includes('haiku')) {
-            // Claude 3.5 Haiku: $1/$5 per million tokens (2025 pricing)
+            // Claude Haiku (3.5/4.5): $1/$5 per million tokens
             return (inputTokens * 0.000001) + (outputTokens * 0.000005);
         }
-        // Claude 3.5 Sonnet: $3/$15 per million tokens (2025 pricing)
+        // Claude Sonnet (3.5/4.5): $3/$15 per million tokens
         return (inputTokens * 0.000003) + (outputTokens * 0.000015);
     }
 
@@ -295,8 +295,8 @@ export class Agent extends BaseAgent {
 // 2025 Pricing Reference:
 //
 // Claude:
-// - 3.5 Haiku: $1/$5 per million tokens
-// - 3.5 Sonnet: $3/$15 per million tokens
+// - Haiku 3.5/4.5: $1/$5 per million tokens
+// - Sonnet 3.5/4.5: $3/$15 per million tokens
 // - Opus 4.5: $5/$25 per million tokens
 //
 // OpenAI:
