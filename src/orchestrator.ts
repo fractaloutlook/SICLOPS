@@ -19,7 +19,7 @@ export class Orchestrator {
     private anthropicClient: Anthropic;
     private openaiClient: OpenAI;
     private cycleCount: number = 0;
-    private cycleCosts: Array<{cycle: string, total: number}> = [];
+    private cycleCosts: Array<{cycle: string, total: number, logPath: string}> = [];
 
     constructor(private config: OrchestratorConfig) {
         this.anthropicClient = new Anthropic({ apiKey: API_KEYS.anthropic });
@@ -108,22 +108,44 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
             throw new Error('Could not find initial agent');
         }
 
+        // Track consensus signals
+        const consensusSignals: Record<string, string> = {};
+
         await this.logCycle(cyclePath, 'Starting cycle', {
             cycleId,
             initialAgent: currentAgent.getName()
         });
 
-        const cycleCost = { cycle: cycleId, total: 0 };
+        const cycleCost = { cycle: cycleId, total: 0, logPath: cyclePath };
 
         while (true) {
+            // Check for consensus (4 out of 5 agents agree)
+            const agreeCount = Object.values(consensusSignals).filter(s => s === 'agree').length;
+            const totalAgents = this.agents.size;
+            const consensusThreshold = Math.ceil(totalAgents * 0.8); // 80% = 4 out of 5
+
+            if (agreeCount >= consensusThreshold) {
+                await this.logCycle(cyclePath, 'Cycle complete - consensus reached', {
+                    finalState: projectFile,
+                    consensusSignals,
+                    agreeCount,
+                    threshold: consensusThreshold
+                });
+                console.log(`\n✅ Consensus reached! ${agreeCount}/${totalAgents} agents agree.`);
+                break;
+            }
+
             const availableTargets = Array.from(this.agents.values())
                 .filter(a => a.canProcess())
                 .map(a => a.getName());
 
             if (availableTargets.length === 0) {
                 await this.logCycle(cyclePath, 'Cycle complete - no available targets', {
-                    finalState: projectFile
+                    finalState: projectFile,
+                    consensusSignals,
+                    finalAgreeCount: agreeCount
                 });
+                console.log(`\nDiscussion ended. Final consensus: ${agreeCount}/${totalAgents} agents agree.`);
                 break;
             }
 
@@ -135,6 +157,12 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
                 if (!newTarget) break;
                 currentAgent = newTarget;
                 continue;
+            }
+
+            // Track consensus signal
+            if (result.consensus) {
+                consensusSignals[currentAgent.getName()] = result.consensus;
+                console.log(`  ${currentAgent.getName()}: ${result.consensus}`);
             }
 
             // Update project file history
@@ -154,8 +182,27 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
             // Get next agent
             const nextAgent = this.agents.get(result.targetAgent);
             if (!nextAgent) {
-                throw new Error(`Invalid target agent: ${result.targetAgent}`);
+                await this.logCycle(cyclePath, 'Invalid target agent selected', {
+                    requestedAgent: result.targetAgent,
+                    availableAgents: Array.from(this.agents.keys()),
+                    availableTargets
+                });
+                console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}". Picking random available agent.`);
+                const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
+                if (!fallbackAgent) break;
+                currentAgent = fallbackAgent;
+                continue;
             }
+
+            // Check if the target agent can still process
+            if (!nextAgent.canProcess()) {
+                console.log(`⚠️  ${result.targetAgent} has hit processing limit. Picking different agent.`);
+                const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
+                if (!fallbackAgent) break;
+                currentAgent = fallbackAgent;
+                continue;
+            }
+
             currentAgent = nextAgent;
 
             await this.logCycle(cyclePath, 'Processing step', {
@@ -170,10 +217,11 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
     }
 
     private async generateNarrativeSummary(): Promise<void> {
-        const narrativePath = `${this.config.logDirectory}/narrative_summary.md`;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const narrativePath = `${this.config.logDirectory}/narrative_${timestamp}.md`;
 
         // Check if this was a conversation or code session
-        const isConversation = this.config.conversationMode;
+        const isConversation = this.config.conversationMode || false;
 
         let narrative = `# ${isConversation ? 'Team Discussion' : 'Project Development Session'}\n\n`;
         narrative += `**Date:** ${new Date().toLocaleDateString()}\n`;
@@ -185,16 +233,8 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
         for (const cycle of this.cycleCosts) {
             narrative += `## ${cycle.cycle}\n\n`;
 
-            // Get all files in the cycles directory that end with this cycle id
-            const cycleFiles = await FileUtils.readDir(`${this.config.logDirectory}/cycles`);
-            const cycleLogFile = cycleFiles.find(f => f.endsWith(`${cycle.cycle}.log`));
-            if (!cycleLogFile) {
-                console.warn(`No log file found for cycle ${cycle.cycle}`);
-                continue;
-            }
-            const cycleLog = await FileUtils.readLogFile(
-                `${this.config.logDirectory}/cycles/${cycleLogFile}`
-            );
+            // Read the cycle log directly from the stored path
+            const cycleLog = await FileUtils.readLogFile(cycle.logPath);
 
             // Get the initial task from first entry
             if (cycleLog.length > 0 && cycleLog[0].currentState?.content) {
@@ -222,7 +262,7 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
 
                         // Start new round every 5 exchanges or when we detect pattern shift
                         if (currentRound.length >= 5) {
-                            narrative += this.formatRound(roundCount, currentRound, isConversation);
+                            narrative += this.formatRound(roundCount, currentRound, !!isConversation);
                             currentRound = [];
                             roundCount++;
                         }
@@ -232,7 +272,7 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
 
             // Format any remaining messages
             if (currentRound.length > 0) {
-                narrative += this.formatRound(roundCount, currentRound, isConversation);
+                narrative += this.formatRound(roundCount, currentRound, !!isConversation);
             }
         }
 
@@ -365,9 +405,10 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
             };
         });
 
-        await FileUtils.appendToLog(
-            `${this.config.logDirectory}/final_summary.json`,
-            summary
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        await FileUtils.writeFile(
+            `${this.config.logDirectory}/final_summary_${timestamp}.json`,
+            JSON.stringify(summary, null, 2)
         );
     }
     private async runSimulationCycle(cyclePath: string, cycleId: string): Promise<void> {
@@ -437,7 +478,7 @@ REMEMBER: You're building this FOR a real user who values speed. Don't overthink
         });
         
         // Record a zero-cost cycle
-        this.cycleCosts.push({ cycle: cycleId, total: 0 });
+        this.cycleCosts.push({ cycle: cycleId, total: 0, logPath: cyclePath });
     }
     
     private getSimulatedAgentResponse(agentName: string, currentContent: string): {

@@ -13,6 +13,7 @@ interface ApiResponse {
     targetAgent: string
     reasoning: string;
     notes: string;
+    consensus?: 'agree' | 'building' | 'disagree';
 }
 
 export class Agent extends BaseAgent {
@@ -129,18 +130,26 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
-                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, debate, ask questions, reference other team members' points. DO NOT write implementation code - just talk about what you think should be built and why.
+                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, debate, challenge assumptions, point out flaws. Reference other team members' points. Be direct - you don't need to praise everyone. Disagree when you disagree. DO NOT write implementation code - just talk about what you think should be built and why.
+
+                CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
+                - "agree" = You think we've reached consensus and can move forward
+                - "building" = Discussion is productive but not ready to conclude
+                - "disagree" = Significant concerns remain, need more discussion
+
+                Discussion concludes when 4 out of 5 team members signal "agree".
 
                 Respond with ONLY a JSON object in this format:
                 {
                     "changes": {
-                        "description": "Your thoughts and contribution to the discussion. Reference other team members by name. Be conversational. Debate ideas. NO CODE - just discussion!",
+                        "description": "Your thoughts and contribution. Be direct. Challenge ideas when needed. Reference specific points others made. NO CODE - just discussion!",
                         "code": "",
                         "location": "discussion"
                     },
                     "targetAgent": "Name of who should speak next (choose from: ${availableTargets.join(', ')})",
-                    "reasoning": "Brief note on who you think should speak next and why",
-                    "notes": "Any additional thoughts or observations"
+                    "reasoning": "Brief note on who should speak next and why",
+                    "notes": "Additional thoughts",
+                    "consensus": "agree | building | disagree"
                 }`
                 :
                 `You are ${this.config.name}. ${this.config.personality}
@@ -253,6 +262,8 @@ export class Agent extends BaseAgent {
                 targetAgent: response.targetAgent,
                 reasoning: response.reasoning,
                 changes: response.changes,
+                notes: response.notes,
+                consensus: response.consensus,
                 cost,
                 tokens
             };

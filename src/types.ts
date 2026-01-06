@@ -48,6 +48,8 @@ export interface ProcessResult {
     accepted: boolean;
     changes?: Changes;  // Optional for conversation mode
     reasoning: string;
+    notes?: string;  // Additional context from agent
+    consensus?: 'agree' | 'building' | 'disagree';  // Consensus signal
     conversation?: ConversationResponse;  // For conversation mode
     cost: number;
     tokens: {
