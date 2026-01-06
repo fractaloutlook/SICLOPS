@@ -3,7 +3,7 @@ import { FileUtils } from './utils/file-utils';
 import { AGENT_CONFIGS, API_KEYS } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, CodeChange } from './types';
+import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
 import { generateVersion } from './utils/version-utils';
 
 interface OrchestratorConfig {
@@ -260,6 +260,131 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Handles file read requests from agents
+     */
+    private async handleFileRead(fileRead: FileReadRequest, agentName: string): Promise<{ success: boolean; content?: string; error?: string }> {
+        console.log(`\n📖 ${agentName} requesting file read: ${fileRead.filePath}`);
+        console.log(`   Reason: ${fileRead.reason}`);
+
+        try {
+            if (!await this.fileExists(fileRead.filePath)) {
+                console.warn(`   ⚠️  File does not exist: ${fileRead.filePath}`);
+                return { success: false, error: 'File does not exist' };
+            }
+
+            const content = await FileUtils.readFile(fileRead.filePath);
+            const lineCount = content.split('\n').length;
+
+            console.log(`   ✅ Read ${lineCount} lines from ${fileRead.filePath}`);
+
+            return { success: true, content };
+
+        } catch (error: any) {
+            console.error(`   ❌ Error reading file: ${error.message}`);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Handles file edit requests (surgical line edits)
+     */
+    private async handleFileEdit(fileEdit: FileEditRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
+        console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit.filePath}`);
+        console.log(`   Reason: ${fileEdit.reason}`);
+        console.log(`   Edits: ${fileEdit.edits.length} change(s)`);
+
+        const context = await this.loadContext();
+        if (!context) {
+            return { success: false, error: 'No context loaded' };
+        }
+
+        try {
+            // Read current file
+            if (!await this.fileExists(fileEdit.filePath)) {
+                return { success: false, error: 'File does not exist - use fileWrite to create new files' };
+            }
+
+            const content = await FileUtils.readFile(fileEdit.filePath);
+            const lines = content.split('\n');
+
+            // Apply edits
+            const editedLines = [...lines];
+            for (const edit of fileEdit.edits) {
+                // Verify old content matches (safety check)
+                const actualOldContent = lines.slice(edit.lineStart - 1, edit.lineEnd).join('\n');
+                if (actualOldContent.trim() !== edit.oldContent.trim()) {
+                    console.error(`   ❌ Edit verification failed at lines ${edit.lineStart}-${edit.lineEnd}`);
+                    console.error(`   Expected: "${edit.oldContent.substring(0, 100)}..."`);
+                    console.error(`   Found: "${actualOldContent.substring(0, 100)}..."`);
+                    return {
+                        success: false,
+                        error: `Content mismatch at lines ${edit.lineStart}-${edit.lineEnd}. File may have changed.`
+                    };
+                }
+
+                // Apply edit
+                const newLines = edit.newContent.split('\n');
+                editedLines.splice(edit.lineStart - 1, edit.lineEnd - edit.lineStart + 1, ...newLines);
+                console.log(`   ✓ Applied edit at lines ${edit.lineStart}-${edit.lineEnd}`);
+            }
+
+            const newContent = editedLines.join('\n');
+
+            // Write to temp file for validation
+            const tempPath = `${fileEdit.filePath}.tmp`;
+            await FileUtils.writeFile(tempPath, newContent);
+
+            // Validate TypeScript
+            console.log(`   🔍 Validating TypeScript compilation...`);
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+
+            try {
+                await execAsync('npx tsc --noEmit', { timeout: 30000 });
+                console.log(`   ✅ TypeScript validation passed!`);
+
+                // Move temp to actual
+                const fs = await import('fs/promises');
+                await fs.rename(tempPath, fileEdit.filePath);
+
+                // Track change
+                const codeChange: CodeChange = {
+                    file: fileEdit.filePath,
+                    action: 'edit',
+                    content: newContent,
+                    appliedAt: new Date().toISOString(),
+                    validatedAt: new Date().toISOString(),
+                    status: 'validated'
+                };
+                context.codeChanges.push(codeChange);
+                await this.saveContext(context);
+
+                console.log(`   💾 Saved edits to: ${fileEdit.filePath}\n`);
+                return { success: true };
+
+            } catch (compileError: any) {
+                const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
+                console.error(`   ❌ TypeScript compilation failed:`);
+                console.error(`   ${errorMsg.substring(0, 500)}`);
+
+                // Save failed attempt
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const failedPath = `${fileEdit.filePath}.failed.${timestamp}.ts`;
+                const fs = await import('fs/promises');
+                await fs.rename(tempPath, failedPath);
+                console.log(`   💾 Saved failed edit to: ${failedPath}`);
+
+                return { success: false, error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}` };
+            }
+
+        } catch (error: any) {
+            console.error(`   ❌ Error applying edits: ${error.message}`);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Check if file exists
      */
     private async fileExists(filePath: string): Promise<boolean> {
@@ -357,40 +482,83 @@ Write the TypeScript code for SharedMemoryCache. Make it:
 - ✅ Usable in next cycle (simple API)
 - ✅ Observable (logs everything)
 
-**⚠️ CRITICAL: HOW TO WRITE CODE TO DISK ⚠️**
+**⚠️ CRITICAL: FILE OPERATIONS ⚠️**
 
-DO NOT embed code in "changes.code" - it will be truncated and cause JSON parse errors!
+DO NOT embed code in "changes.code" - it will be truncated!
 
-REQUIRED: Use the "fileWrite" capability for ALL code implementations:
+**Three file operations available:**
 
+**1. READ files before editing (ALWAYS do this first!):**
+\`\`\`json
+{
+  "fileRead": {
+    "action": "read_file",
+    "filePath": "src/memory/shared-cache.ts",
+    "reason": "Need to see current implementation before fixing bug"
+  },
+  "target": "Morgan",
+  "reasoning": "Reading file, then Morgan will fix the type error"
+}
+\`\`\`
+Next agent will see file content in project history.
+
+**2. EDIT existing files (surgical changes - PREFERRED for existing code!):**
+For files < 1000 lines, use surgical edits (saves massive tokens):
+\`\`\`json
+{
+  "fileEdit": {
+    "action": "edit_file",
+    "filePath": "src/memory/shared-cache.ts",
+    "edits": [{
+      "lineStart": 347,
+      "lineEnd": 347,
+      "oldContent": "return Array.from(this.cache.values()).reduce((sum, e) => sum + e.tokens, 0);",
+      "newContent": "return Array.from(this.cache.values()).reduce((sum: number, e) => sum + e.tokens, 0);"
+    }],
+    "reason": "Fix TypeScript error: Type 'unknown' is not assignable to type 'number'"
+  },
+  "target": "Jordan",
+  "reasoning": "Fixed type error. Jordan, verify it compiles."
+}
+\`\`\`
+**Use fileEdit for:**
+- Fixing bugs (change specific lines)
+- Adding types to existing code
+- Refactoring specific functions
+- Any change to existing files
+
+**3. WRITE new files (full content - only for NEW files!):**
 \`\`\`json
 {
   "fileWrite": {
     "action": "write_file",
     "filePath": "src/memory/shared-cache.ts",
-    "content": "<your full TypeScript code here>",
+    "content": "<full TypeScript code>",
     "reason": "Initial implementation of SharedMemoryCache"
   },
   "target": "Sam",
-  "reasoning": "I've implemented the core cache. Sam, please review for safety.",
-  "consensus": "building"
+  "reasoning": "New file created. Sam, review for safety."
 }
 \`\`\`
+**ONLY use fileWrite for:**
+- Brand new files that don't exist yet
+- Files > 1000 lines where edits would be too complex
 
-**DO NOT include a "changes" field when writing code files.**
-**Use ONLY "fileWrite" for TypeScript implementations.**
+**All operations:**
+✅ Auto-validate TypeScript (\`tsc --noEmit\`)
+✅ Save failed attempts for debugging
+✅ Show errors to next agent
+✅ Track in context
 
-**What happens when you use fileWrite:**
-1. ✅ No JSON truncation (content can be any size)
-2. ✅ Automatic TypeScript validation (\`tsc --noEmit\`)
-3. ✅ Only saved if compilation succeeds
-4. ✅ Errors shown immediately if code is invalid
-5. ✅ Tracked in context for next run
+**WORKFLOW:**
+1. fileRead → see what's there
+2. fileEdit → fix it (or fileWrite if new)
+3. Next agent sees results
 
-**If you want to discuss/review without writing:**
-- Set "fileWrite": null
-- Use "reasoning" and "notes" to explain your thoughts
-- Signal "consensus": "building" to continue discussion
+**File size limits:**
+- < 200 lines: Either edit or write
+- 200-1000 lines: Prefer edit (saves tokens!)
+- \> 1000 lines: MUST use edit, no full rewrites
 
 When implementation is complete and validated, signal consensus="agree".
 
@@ -657,11 +825,72 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                 projectFile.content = result.changes.code || projectFile.content;
             }
 
-            // Handle file write requests
+            // Handle file read requests
+            if (result.fileRead) {
+                const readResult = await this.handleFileRead(result.fileRead, currentAgent.getName());
+
+                if (readResult.success && readResult.content) {
+                    // Add file content to project history so next agent sees it
+                    const lineCount = readResult.content.split('\n').length;
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_read_success',
+                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\`\`\`typescript\n${readResult.content}\n\`\`\``,
+                        changes: {
+                            description: `Read ${lineCount} lines`,
+                            location: result.fileRead.filePath
+                        }
+                    });
+                } else if (!readResult.success) {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_read_failed',
+                        notes: `❌ Failed to read ${result.fileRead.filePath}: ${readResult.error}`,
+                        changes: {
+                            description: 'File read failed',
+                            location: result.fileRead.filePath
+                        }
+                    });
+                }
+            }
+
+            // Handle file edit requests (surgical edits)
+            if (result.fileEdit) {
+                const editResult = await this.handleFileEdit(result.fileEdit, currentAgent.getName());
+
+                if (!editResult.success && editResult.error) {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_edit_failed',
+                        notes: `❌ EDIT FAILED for ${result.fileEdit.filePath}\n\nErrors:\n${editResult.error}`,
+                        changes: {
+                            description: 'File edit failed - see errors above',
+                            location: result.fileEdit.filePath
+                        }
+                    });
+
+                    console.log(`\n⚠️  Next agent will see edit errors and can fix them.\n`);
+                } else if (editResult.success) {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_edit_success',
+                        notes: `✅ Successfully edited and validated ${result.fileEdit.filePath} (${result.fileEdit.edits.length} change(s))`,
+                        changes: {
+                            description: `Applied ${result.fileEdit.edits.length} edit(s) successfully`,
+                            location: result.fileEdit.filePath
+                        }
+                    });
+                }
+            }
+
+            // Handle file write requests (full file writes - for new files)
             if (result.fileWrite) {
                 const writeResult = await this.handleFileWrite(result.fileWrite, currentAgent.getName());
 
-                // If file write failed, add error to project history so next agent knows
                 if (!writeResult.success && writeResult.error) {
                     projectFile.history.push({
                         agent: 'Orchestrator',

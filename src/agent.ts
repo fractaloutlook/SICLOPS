@@ -1,5 +1,5 @@
 import { BaseAgent, AgentState } from './agent-base';
-import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest } from './types';
+import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequest, FileEditRequest } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { FileUtils } from './utils/file-utils';
@@ -10,6 +10,8 @@ interface ApiResponse {
         code?: string;
         location?: string;
     };
+    fileRead?: FileReadRequest;
+    fileEdit?: FileEditRequest;
     fileWrite?: FileWriteRequest;
     targetAgent: string
     reasoning: string;
@@ -395,6 +397,8 @@ export class Agent extends BaseAgent {
                 reasoning: response.reasoning,
                 notes: response.notes,
                 consensus: response.consensus,
+                fileRead: response.fileRead,
+                fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite
             });
 
@@ -403,6 +407,8 @@ export class Agent extends BaseAgent {
                 targetAgent: targetAgent,
                 reasoning: response.reasoning,
                 changes: response.changes,
+                fileRead: response.fileRead,
+                fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite,
                 notes: response.notes,
                 consensus: response.consensus,

@@ -47,7 +47,9 @@ export interface ProcessResult {
     targetAgent: string;
     accepted: boolean;
     changes?: Changes;  // Optional for conversation mode
-    fileWrite?: FileWriteRequest;  // NEW: Agent can request to write code to disk
+    fileRead?: FileReadRequest;  // Agent can request to read a file
+    fileEdit?: FileEditRequest;  // Agent can request surgical edits to existing file
+    fileWrite?: FileWriteRequest;  // Agent can request to write entire file (new files only)
     reasoning: string;
     notes?: string;  // Additional context from agent
     consensus?: 'agree' | 'building' | 'disagree';  // Consensus signal
@@ -57,6 +59,24 @@ export interface ProcessResult {
         input: number;
         output: number;
     };
+}
+
+export interface FileReadRequest {
+    action: 'read_file';
+    filePath: string;
+    reason: string;
+}
+
+export interface FileEditRequest {
+    action: 'edit_file';
+    filePath: string;
+    edits: Array<{
+        lineStart: number;
+        lineEnd: number;
+        oldContent: string;  // What should be there (verification)
+        newContent: string;  // What to replace it with
+    }>;
+    reason: string;
 }
 
 export interface FileWriteRequest {
