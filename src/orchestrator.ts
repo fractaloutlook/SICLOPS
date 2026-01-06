@@ -418,6 +418,57 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Extract key decisions from agent discussion.
+     * Looks for agents who signaled "agree" and extracts their main points.
+     */
+    private extractKeyDecisions(projectFileHistory: any[], consensusSignals: Record<string, string>): string[] {
+        const decisions: string[] = [];
+        const agentsWhoAgreed = Object.entries(consensusSignals)
+            .filter(([_, signal]) => signal === 'agree')
+            .map(([agent, _]) => agent);
+
+        // Find entries from agents who agreed
+        for (const entry of projectFileHistory) {
+            if (agentsWhoAgreed.includes(entry.agent)) {
+                // Extract decision from their notes or changes.description
+                const decision = this.extractDecisionFromEntry(entry);
+                if (decision) {
+                    decisions.push(`${entry.agent}: ${decision}`);
+                }
+            }
+        }
+
+        // If no one agreed, extract from last few entries anyway (partial progress)
+        if (decisions.length === 0 && projectFileHistory.length > 0) {
+            const recentEntries = projectFileHistory.slice(-3);
+            for (const entry of recentEntries) {
+                const decision = this.extractDecisionFromEntry(entry);
+                if (decision) {
+                    decisions.push(`${entry.agent} (building): ${decision}`);
+                }
+            }
+        }
+
+        return decisions;
+    }
+
+    private extractDecisionFromEntry(entry: any): string | null {
+        // Try to extract meaningful decision from notes or changes
+        if (entry.notes && entry.notes.length > 10) {
+            // Extract first sentence or up to 150 chars
+            const cleaned = entry.notes.trim().split('\n')[0];
+            return cleaned.substring(0, 150);
+        }
+
+        if (entry.changes?.description && entry.changes.description.length > 10) {
+            const cleaned = entry.changes.description.trim().split('\n')[0];
+            return cleaned.substring(0, 150);
+        }
+
+        return null;
+    }
+
+    /**
      * Generates implementation-focused prompt with design decisions from discussion.
      */
     private generateImplementationPrompt(context: OrchestratorContext): string {
@@ -616,7 +667,7 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
         await this.updateContextAtEnd();
     }
 
-    private async updateContextAtEnd(consensusSignals?: Record<string, string>): Promise<void> {
+    private async updateContextAtEnd(consensusSignals?: Record<string, string>, projectFileHistory?: any[]): Promise<void> {
         const context = await this.loadContext();
         if (!context) return;
 
@@ -642,6 +693,21 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             const agreeCount = Object.values(consensusSignals).filter(s => s === 'agree').length;
             if (agreeCount >= 4) {
                 context.discussionSummary.consensusReached = true;
+            }
+        }
+
+        // Extract key decisions from agent discussion
+        if (projectFileHistory && projectFileHistory.length > 0) {
+            const newDecisions = this.extractKeyDecisions(projectFileHistory, consensusSignals || {});
+            if (newDecisions.length > 0) {
+                // Add new decisions, avoiding duplicates
+                const existingDecisions = new Set(context.discussionSummary.keyDecisions);
+                for (const decision of newDecisions) {
+                    if (!existingDecisions.has(decision)) {
+                        context.discussionSummary.keyDecisions.push(decision);
+                    }
+                }
+                console.log(`\n📋 Extracted ${newDecisions.length} key decision(s) from discussion`);
             }
         }
 
@@ -971,9 +1037,9 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         this.cycleCosts.push(cycleCost);
         await this.updateCostSummary();
 
-        // Save consensus signals to context
+        // Save consensus signals and extract key decisions from discussion
         if (Object.keys(consensusSignals).length > 0) {
-            await this.updateContextAtEnd(consensusSignals);
+            await this.updateContextAtEnd(consensusSignals, projectFile.history);
         }
     }
 
