@@ -42,13 +42,90 @@ export class Agent extends BaseAgent {
         return { ...this.state };
     }
 
+    /**
+     * Attempts to recover truncated JSON by closing open strings and objects
+     */
+    private attemptJsonRecovery(truncatedJson: string): string {
+        let recovered = truncatedJson;
+
+        // Find if we're inside an unclosed string
+        let inString = false;
+        let stringChar = '';
+        let escapeNext = false;
+        let lastCompletePos = 0;
+
+        for (let i = 0; i < recovered.length; i++) {
+            const char = recovered[i];
+
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+
+            if ((char === '"' || char === "'") && !inString) {
+                inString = true;
+                stringChar = char;
+            } else if (char === stringChar && inString) {
+                inString = false;
+                stringChar = '';
+                lastCompletePos = i;
+            }
+        }
+
+        // If we're inside a string, close it and truncate to last complete position
+        if (inString) {
+            console.warn(`[Agent] Truncated mid-string, closing at position ${lastCompletePos}`);
+            recovered = recovered.substring(0, lastCompletePos + 1);
+        }
+
+        // Count open braces and close them
+        let braceCount = 0;
+        let bracketCount = 0;
+        for (const char of recovered) {
+            if (char === '{') braceCount++;
+            if (char === '}') braceCount--;
+            if (char === '[') bracketCount++;
+            if (char === ']') bracketCount--;
+        }
+
+        // Close any unclosed brackets/braces
+        while (bracketCount > 0) {
+            recovered += ']';
+            bracketCount--;
+        }
+        while (braceCount > 0) {
+            recovered += '}';
+            braceCount--;
+        }
+
+        return recovered;
+    }
+
     private cleanJsonResponse(response: string): string {
         // Remove markdown code blocks if present
+        const originalResponse = response;
         response = response.replace(/```json\n/g, '')
                           .replace(/```\n/g, '')
                           .replace(/```/g, '');
         // Clean up any leading/trailing whitespace
         response = response.trim();
+
+        // Detect if response looks truncated (starts with { but doesn't end with })
+        const startsWithBrace = response.startsWith('{');
+        const endsWithBrace = response.trimEnd().endsWith('}');
+
+        if (startsWithBrace && !endsWithBrace) {
+            // Response is likely truncated - try to salvage it
+            console.warn(`[Agent:${this.config.name}] Response appears truncated (${response.length} chars). Attempting recovery...`);
+
+            // Try to close the JSON by counting braces/quotes
+            response = this.attemptJsonRecovery(response);
+        }
 
         // Try to find JSON object boundaries and extract just the JSON
         const jsonMatch = response.match(/\{[\s\S]*\}/);
