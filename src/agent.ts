@@ -319,7 +319,7 @@ export class Agent extends BaseAgent {
             if (this.apiClient instanceof Anthropic) {
                 const apiResponse = await this.apiClient.messages.create({
                     model: this.config.model,
-                    max_tokens: 4096,  // Increased for code generation
+                    max_tokens: 8192,  // Increased to prevent truncation of long responses
                     messages: [{
                         role: 'user',
                         content: prompt

@@ -58,6 +58,15 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
     }
 };
 
+// Fixed workflow order for sequential processing (when requireConsensus is false)
+export const AGENT_WORKFLOW_ORDER = [
+    'Morgan',   // 1. Implementation Specialist - writes the code
+    'Sam',      // 2. System Architect - reviews architecture
+    'Jordan',   // 3. Guardian - safety check
+    'Alex',     // 4. UX Visionary - user experience review
+    'Pierre'    // 5. Entrepreneur - final scope/value check
+];
+
 export const API_KEYS = {
     anthropic: process.env.ANTHROPIC_API_KEY,
     openai: process.env.OPENAI_API_KEY

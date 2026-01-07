@@ -1,6 +1,6 @@
 import { Agent } from './agent';
 import { FileUtils } from './utils/file-utils';
-import { AGENT_CONFIGS, API_KEYS } from './config';
+import { AGENT_CONFIGS, API_KEYS, AGENT_WORKFLOW_ORDER } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
@@ -882,7 +882,7 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             return;
         }
 
-        // Pick first available agent (not hardcoded to avoid agents at turn limit)
+        // Pick first available agent
         const initialAvailableAgents = Array.from(this.agents.values())
             .filter(a => a.canProcess())
             .map(a => a.getName());
@@ -891,12 +891,29 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             throw new Error('No agents available to start cycle (all at processing limit)');
         }
 
-        let currentAgent = this.getRandomAvailableAgent(initialAvailableAgents);
-        if (!currentAgent) {
-            throw new Error('Could not find initial agent');
-        }
+        let currentAgent: Agent | null = null;
 
-        console.log(`🎯 Starting with ${currentAgent.getName()} (${initialAvailableAgents.length} agents available)\n`);
+        if (this.config.requireConsensus === false) {
+            // Use fixed workflow order - start with first agent in order
+            for (const agentName of AGENT_WORKFLOW_ORDER) {
+                const agent = this.agents.get(agentName);
+                if (agent && agent.canProcess()) {
+                    currentAgent = agent;
+                    console.log(`🎯 Starting workflow with ${currentAgent.getName()} (step 1/${AGENT_WORKFLOW_ORDER.length})\n`);
+                    break;
+                }
+            }
+            if (!currentAgent) {
+                throw new Error('Could not find initial agent in workflow order');
+            }
+        } else {
+            // Random selection for consensus mode
+            currentAgent = this.getRandomAvailableAgent(initialAvailableAgents);
+            if (!currentAgent) {
+                throw new Error('Could not find initial agent');
+            }
+            console.log(`🎯 Starting with ${currentAgent.getName()} (${initialAvailableAgents.length} agents available)\n`);
+        }
 
         // Track consensus signals
         const consensusSignals: Record<string, string> = {};
@@ -1069,28 +1086,40 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                 }
             }
 
-            // Get next agent
-            const nextAgent = this.agents.get(result.targetAgent);
-            if (!nextAgent) {
-                await this.logCycle(cyclePath, 'Invalid target agent selected', {
-                    requestedAgent: result.targetAgent,
-                    availableAgents: Array.from(this.agents.keys()),
-                    availableTargets
-                });
-                console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}". Picking random available agent.`);
-                const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
-                if (!fallbackAgent) break;
-                currentAgent = fallbackAgent;
-                continue;
-            }
+            // Get next agent (use fixed workflow order if consensus disabled)
+            let nextAgent: Agent | null = null;
 
-            // Check if the target agent can still process
-            if (!nextAgent.canProcess()) {
-                console.log(`⚠️  ${result.targetAgent} has hit processing limit. Picking different agent.`);
-                const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
-                if (!fallbackAgent) break;
-                currentAgent = fallbackAgent;
-                continue;
+            if (this.config.requireConsensus === false) {
+                // Fixed workflow order
+                nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                if (!nextAgent) {
+                    console.log(`✅ Workflow complete - all agents processed in order`);
+                    break;
+                }
+            } else {
+                // Agent chooses who to pass to
+                nextAgent = this.agents.get(result.targetAgent) || null;
+                if (!nextAgent) {
+                    await this.logCycle(cyclePath, 'Invalid target agent selected', {
+                        requestedAgent: result.targetAgent,
+                        availableAgents: Array.from(this.agents.keys()),
+                        availableTargets
+                    });
+                    console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}". Picking random available agent.`);
+                    const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
+                    if (!fallbackAgent) break;
+                    currentAgent = fallbackAgent;
+                    continue;
+                }
+
+                // Check if the target agent can still process
+                if (!nextAgent.canProcess()) {
+                    console.log(`⚠️  ${result.targetAgent} has hit processing limit. Picking different agent.`);
+                    const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
+                    if (!fallbackAgent) break;
+                    currentAgent = fallbackAgent;
+                    continue;
+                }
             }
 
             currentAgent = nextAgent;
@@ -1252,6 +1281,41 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             return null;
         }
         return agent;
+    }
+
+    /**
+     * Get next agent in the fixed workflow order (when requireConsensus is false).
+     * Returns null if workflow is complete.
+     */
+    private getNextAgentInWorkflow(currentAgentName: string, availableAgents: string[]): Agent | null {
+        const currentIndex = AGENT_WORKFLOW_ORDER.indexOf(currentAgentName);
+        if (currentIndex === -1) {
+            // Current agent not in workflow order, start from beginning
+            for (const agentName of AGENT_WORKFLOW_ORDER) {
+                if (availableAgents.includes(agentName)) {
+                    const agent = this.agents.get(agentName);
+                    if (agent && agent.canProcess()) {
+                        return agent;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Find next agent in workflow order who can still process
+        for (let i = currentIndex + 1; i < AGENT_WORKFLOW_ORDER.length; i++) {
+            const agentName = AGENT_WORKFLOW_ORDER[i];
+            if (availableAgents.includes(agentName)) {
+                const agent = this.agents.get(agentName);
+                if (agent && agent.canProcess()) {
+                    console.log(`📋 Workflow: ${currentAgentName} → ${agentName} (step ${i + 1}/${AGENT_WORKFLOW_ORDER.length})`);
+                    return agent;
+                }
+            }
+        }
+
+        // Reached end of workflow
+        return null;
     }
 
     private async logCycle(cyclePath: string, message: string, data: any): Promise<void> {
