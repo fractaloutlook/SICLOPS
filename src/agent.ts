@@ -249,6 +249,7 @@ export class Agent extends BaseAgent {
 
             // Check if this is a conversation vs code task
             const isConversation = file.content.includes('TEAM DISCUSSION');
+            const requireConsensus = file.content.includes('Reach consensus');
 
             const prompt = isConversation ?
                 `You are ${this.config.name}. ${this.config.personality}
@@ -264,26 +265,25 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
-                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, debate, challenge assumptions, point out flaws. Reference other team members' points. Be direct - you don't need to praise everyone. Disagree when you disagree. DO NOT write implementation code - just talk about what you think should be built and why.
+                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct. DO NOT write implementation code - just talk about what you think should be built and why.
 
-                CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
+                ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
                 - "agree" = You think we've reached consensus and can move forward
                 - "building" = Discussion is productive but not ready to conclude
                 - "disagree" = Significant concerns remain, need more discussion
 
-                Discussion concludes when 4 out of 5 team members signal "agree".
+                Discussion concludes when 4 out of 5 team members signal "agree".` : `WORKFLOW: Each agent contributes their perspective, then passes to the next agent. Work through all team members sequentially.`}
 
                 Respond with ONLY a JSON object in this format:
                 {
                     "changes": {
-                        "description": "Your thoughts and contribution. Be direct. Challenge ideas when needed. Reference specific points others made. NO CODE - just discussion!",
+                        "description": "Your thoughts and contribution. Be direct. ${requireConsensus ? 'Challenge ideas when needed.' : 'Build on ideas.'} Reference specific points others made. NO CODE - just discussion!",
                         "code": "",
                         "location": "discussion"
                     },
                     "targetAgent": "REQUIRED: Choose ONLY from available list above: ${availableTargets.join(', ')}",
                     "reasoning": "Brief note on who should speak next and why",
-                    "notes": "Additional thoughts",
-                    "consensus": "agree | building | disagree"
+                    "notes": "Additional thoughts"${requireConsensus ? ',\n                    "consensus": "agree | building | disagree"' : ''}
                 }`
                 :
                 `You are ${this.config.name}. ${this.config.personality}
