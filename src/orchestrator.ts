@@ -11,7 +11,8 @@ interface OrchestratorConfig {
     logDirectory: string;
     costSummaryPath: string;
     simulationMode?: boolean;
-    conversationMode?: boolean;  // NEW: For team discussions
+    conversationMode?: boolean;  // For team discussions
+    humanComment?: string;  // Human comment passed from command line
 }
 
 export class Orchestrator {
@@ -612,7 +613,7 @@ For files < 1000 lines, use surgical edits (saves massive tokens):
 - \> 1000 lines: MUST use edit, no full rewrites
 
 When implementation is complete and validated, signal consensus="agree".
-
+${context.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
 Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
     }
 
@@ -643,6 +644,12 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             console.log(`\n🔄 Resetting turn counts for new cycle...\n`);
             for (const agent of this.agents.values()) {
                 agent.resetTurnsForNewCycle();
+            }
+
+            // Update human notes if provided via command line
+            if (this.config.humanComment) {
+                context.humanNotes = this.config.humanComment;
+                console.log(`\n💬 Human comment: "${this.config.humanComment}"\n`);
             }
 
             // Increment run number
@@ -856,7 +863,7 @@ IMPORTANT:
 - Don't over-engineer (Jordan: MVP mode!)
 - Be direct, challenge ideas, disagree when needed
 - Signal consensus honestly: agree/building/disagree
-
+${context?.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
 Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             projectStage = 'team_discussion';
         }
