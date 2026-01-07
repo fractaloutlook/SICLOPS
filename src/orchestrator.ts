@@ -4,6 +4,7 @@ import { AGENT_CONFIGS, API_KEYS, AGENT_WORKFLOW_ORDER } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
+import { SharedMemoryCache } from './memory/shared-cache';
 import { generateVersion } from './utils/version-utils';
 
 interface OrchestratorConfig {
@@ -1081,6 +1082,26 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                         changes: {
                             description: 'File compiled successfully and saved',
                             location: result.fileWrite.filePath
+                        }
+                    });
+                }
+            }
+
+            // Detect phase transition: if agents are doing file operations, they're implementing!
+            if ((result.fileRead || result.fileEdit || result.fileWrite) && projectStage === 'team_discussion') {
+                projectStage = 'implementation';
+                projectFile.currentStage = 'implementation';
+                console.log(`\n🔨 Phase auto-detected: IMPLEMENTATION (agents are working on code)\n`);
+
+                // Update context to reflect phase change
+                const ctx = await this.loadContext();
+                if (ctx) {
+                    await this.updateContext({
+                        currentPhase: 'code_review',
+                        nextAction: {
+                            type: 'apply_changes',
+                            reason: 'Agents actively implementing - iterating until feature complete and tested',
+                            targetAgent: undefined
                         }
                     });
                 }

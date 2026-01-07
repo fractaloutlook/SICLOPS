@@ -265,6 +265,12 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
+                📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
+                - Read it at start of turn (fileRead) to see your previous thoughts
+                - Update it with new observations (fileEdit) before passing on
+                - Log future ideas there instead of debating them now
+                - Only discuss MVP-critical items in conversation
+
                 IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct and CONCISE (under 300 words). DO NOT write implementation code - just talk about what you think should be built and why.
 
                 ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
@@ -297,9 +303,15 @@ export class Agent extends BaseAgent {
 
                 Available team members to pass to: ${availableTargets.join(', ')}
 
+                📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
+                - Read it first (fileRead) to see your previous observations
+                - Update it (fileEdit) with new learnings before passing on
+                - Log non-MVP ideas there instead of implementing them
+                - Review suggestions from other agents in their notebooks
+
                 Based on your role and focus:
                 1. Review the current state
-                2. Make any necessary changes
+                2. Make any necessary changes OR log them in your notebook if not MVP-critical
                 3. Choose a team member to pass this to
 
                 CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
