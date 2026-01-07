@@ -265,7 +265,7 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
-                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct. DO NOT write implementation code - just talk about what you think should be built and why.
+                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct and CONCISE (under 300 words). DO NOT write implementation code - just talk about what you think should be built and why.
 
                 ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
                 - "agree" = You think we've reached consensus and can move forward
@@ -302,7 +302,8 @@ export class Agent extends BaseAgent {
                 2. Make any necessary changes
                 3. Choose a team member to pass this to
 
-                You MUST respond with ONLY a valid JSON object. You MUST include actual implementation code in the "code" field, not just descriptions.
+                CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
+                You MUST respond with ONLY a valid JSON object.
                 IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSON.
                 Format:
                 {
