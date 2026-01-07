@@ -185,9 +185,47 @@ export class Agent extends BaseAgent {
         }
 
         // Try to find JSON object boundaries and extract just the JSON
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            response = jsonMatch[0];
+        // Use brace counting instead of greedy regex to handle text after JSON
+        const firstBrace = response.indexOf('{');
+        if (firstBrace !== -1) {
+            let braceCount = 0;
+            let inString = false;
+            let escapeNext = false;
+            let jsonEnd = -1;
+
+            for (let i = firstBrace; i < response.length; i++) {
+                const char = response[i];
+
+                if (escapeNext) {
+                    escapeNext = false;
+                    continue;
+                }
+
+                if (char === '\\') {
+                    escapeNext = true;
+                    continue;
+                }
+
+                if (char === '"') {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString) {
+                    if (char === '{') braceCount++;
+                    if (char === '}') {
+                        braceCount--;
+                        if (braceCount === 0) {
+                            jsonEnd = i + 1;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (jsonEnd !== -1) {
+                response = response.substring(firstBrace, jsonEnd);
+            }
         }
 
         // Fix common JSON issues: escape unescaped newlines and tabs in string values
