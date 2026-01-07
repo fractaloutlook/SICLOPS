@@ -12,6 +12,7 @@ interface OrchestratorConfig {
     costSummaryPath: string;
     simulationMode?: boolean;
     conversationMode?: boolean;  // For team discussions
+    requireConsensus?: boolean;  // If false, agents just pass in sequence instead of debating to consensus
     humanComment?: string;  // Human comment passed from command line
 }
 
@@ -853,16 +854,16 @@ OTHER OPTIONS (pick ONE):
 - Error recovery system (retry with backoff)
 
 DISCUSSION GOALS:
-1. Debate which ONE feature to build first
-2. Reach consensus (4/5 agents agree)
+1. ${this.config.requireConsensus !== false ? 'Debate which ONE feature to build first' : 'Collaborate to pick ONE feature to build'}
+2. ${this.config.requireConsensus !== false ? 'Reach consensus (4/5 agents agree)' : 'Each agent contributes their perspective in sequence'}
 3. Define SPECIFIC implementation details
 4. Be ready to write actual working code
 
 IMPORTANT:
 - Focus on ONE feature only
 - Don't over-engineer (Jordan: MVP mode!)
-- Be direct, challenge ideas, disagree when needed
-- Signal consensus honestly: agree/building/disagree
+- Be direct, challenge ideas, ${this.config.requireConsensus !== false ? 'disagree when needed' : 'build on each other\'s ideas'}
+${this.config.requireConsensus !== false ? '- Signal consensus honestly: agree/building/disagree' : '- Work sequentially: each agent reviews and passes to next'}
 ${context?.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
 Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             projectStage = 'team_discussion';
@@ -909,20 +910,23 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         const cycleCost = { cycle: cycleId, total: 0, logPath: cyclePath };
 
         while (true) {
-            // Check for consensus (4 out of 5 agents agree)
             const agreeCount = Object.values(consensusSignals).filter(s => s === 'agree').length;
             const totalAgents = this.agents.size;
-            const consensusThreshold = Math.ceil(totalAgents * 0.8); // 80% = 4 out of 5
 
-            if (agreeCount >= consensusThreshold) {
-                await this.logCycle(cyclePath, 'Cycle complete - consensus reached', {
-                    finalState: projectFile,
-                    consensusSignals,
-                    agreeCount,
-                    threshold: consensusThreshold
-                });
-                console.log(`\n✅ Consensus reached! ${agreeCount}/${totalAgents} agents agree.`);
-                break;
+            // Check for consensus (only if requireConsensus is enabled)
+            if (this.config.requireConsensus !== false) {
+                const consensusThreshold = Math.ceil(totalAgents * 0.8); // 80% = 4 out of 5
+
+                if (agreeCount >= consensusThreshold) {
+                    await this.logCycle(cyclePath, 'Cycle complete - consensus reached', {
+                        finalState: projectFile,
+                        consensusSignals,
+                        agreeCount,
+                        threshold: consensusThreshold
+                    });
+                    console.log(`\n✅ Consensus reached! ${agreeCount}/${totalAgents} agents agree.`);
+                    break;
+                }
             }
 
             const availableTargets = Array.from(this.agents.values())
@@ -935,7 +939,10 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                     consensusSignals,
                     finalAgreeCount: agreeCount
                 });
-                console.log(`\nDiscussion ended. Final consensus: ${agreeCount}/${totalAgents} agents agree.`);
+                const consensusMsg = this.config.requireConsensus !== false
+                    ? `Final consensus: ${agreeCount}/${totalAgents} agents agree.`
+                    : 'All agents completed their turns.';
+                console.log(`\n${consensusMsg}`);
                 break;
             }
 

@@ -21,6 +21,7 @@ async function main() {
         costSummaryPath: path.join(__dirname, '../data/summaries/costs_summary.csv'),
         simulationMode: false, // Running with real API calls
         conversationMode: true, // Team discussion mode
+        requireConsensus: false, // Disabled - consensus causes turn limit deadlocks
         humanComment // Pass human comment from command line
     });
 
