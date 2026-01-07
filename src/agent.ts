@@ -309,6 +309,9 @@ export class Agent extends BaseAgent {
                 - Log future ideas there instead of debating them now
                 - Only discuss MVP-critical items in conversation
 
+                🔄 MULTI-STEP WORK: You can pass to yourself up to 3 times for multi-file tasks.
+                Use this to read multiple files or complete complex operations in one cycle.
+
                 IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct and CONCISE (under 300 words). DO NOT write implementation code - just talk about what you think should be built and why.
 
                 ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
@@ -347,10 +350,16 @@ export class Agent extends BaseAgent {
                 - Log non-MVP ideas there instead of implementing them
                 - Review suggestions from other agents in their notebooks
 
+                🔄 MULTI-STEP WORK: You can pass to yourself up to 3 times for complex tasks:
+                - Turn 1: Read jordan-notes.md → pass to yourself
+                - Turn 2: Read orchestrator.ts → pass to yourself
+                - Turn 3: Edit orchestrator.ts → pass to next agent
+                After 3 self-passes, you MUST pass to someone else.
+
                 Based on your role and focus:
                 1. Review the current state
                 2. Make any necessary changes OR log them in your notebook if not MVP-critical
-                3. Choose a team member to pass this to
+                3. Choose a team member to pass this to (can be yourself for multi-step work)
 
                 CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
                 You MUST respond with ONLY a valid JSON object.
@@ -437,16 +446,25 @@ export class Agent extends BaseAgent {
             // Validate target agent
             let targetAgent = response.targetAgent;
 
-            // Prevent self-passing (waste of tokens)
+            // Allow self-passing up to 3 times for multi-step work
             if (targetAgent === this.config.name) {
-                const othersAvailable = availableTargets.filter(t => t !== this.config.name);
-                if (othersAvailable.length > 0) {
-                    console.warn(`[Agent:${this.config.name}] Cannot pass to self, picking ${othersAvailable[0]}`);
-                    targetAgent = othersAvailable[0];
+                if (this.state.consecutiveSelfPasses < 3) {
+                    this.state.consecutiveSelfPasses++;
+                    console.log(`[Agent:${this.config.name}] Self-passing for multi-step work (${this.state.consecutiveSelfPasses}/3)`);
                 } else {
-                    console.warn(`[Agent:${this.config.name}] No other agents available`);
-                    targetAgent = availableTargets[0];
+                    // Limit reached, must pass to someone else
+                    const othersAvailable = availableTargets.filter(t => t !== this.config.name);
+                    if (othersAvailable.length > 0) {
+                        targetAgent = othersAvailable[0];
+                        console.warn(`[Agent:${this.config.name}] Self-pass limit reached (3/3), must pass to ${targetAgent}`);
+                    } else {
+                        console.warn(`[Agent:${this.config.name}] No other agents available, forced self-pass`);
+                    }
+                    this.state.consecutiveSelfPasses = 0; // Reset counter
                 }
+            } else {
+                // Passing to someone else, reset counter
+                this.state.consecutiveSelfPasses = 0;
             }
 
             // Validate target exists in available list

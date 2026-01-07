@@ -6,6 +6,7 @@ export interface AgentState {
     lastProcessedAt: Date;
     totalCost: number;
     totalTokensUsed: number;
+    consecutiveSelfPasses: number;  // Track self-passes to enable multi-step work
     operations: {
         timestamp: Date;
         operation: string;
@@ -28,6 +29,7 @@ export abstract class BaseAgent {
             lastProcessedAt: new Date(),
             totalCost: 0,
             totalTokensUsed: 0,
+            consecutiveSelfPasses: 0,
             operations: []
         };
         
@@ -48,6 +50,7 @@ export abstract class BaseAgent {
 
     resetTurnsForNewCycle(): void {
         this.state.timesProcessed = 0;
+        this.state.consecutiveSelfPasses = 0;
     }
 
     protected async log(message: string, data?: any): Promise<void> {
