@@ -964,7 +964,51 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                 break;
             }
 
-            const result = await currentAgent.processFile(projectFile, availableTargets);
+            // Inner loop: Keep calling same agent while they request file reads
+            // This allows agents to read multiple files and then act on them in ONE turn
+            let result = await currentAgent.processFile(projectFile, availableTargets);
+            let fileReadIterations = 0;
+            const MAX_FILE_READS_PER_TURN = 5; // Prevent infinite loops
+
+            while (result.fileRead && fileReadIterations < MAX_FILE_READS_PER_TURN) {
+                cycleCost.total += result.cost;
+
+                // Handle the file read immediately
+                const readResult = await this.handleFileRead(result.fileRead, currentAgent.getName());
+
+                if (readResult.success && readResult.content) {
+                    const lineCount = readResult.content.split('\n').length;
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_read_success',
+                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${readResult.content}`,
+                        changes: {
+                            description: `Read ${lineCount} lines`,
+                            location: result.fileRead.filePath
+                        }
+                    });
+                    console.log(`   🔄 Calling ${currentAgent.getName()} again with file content (iteration ${fileReadIterations + 1}/${MAX_FILE_READS_PER_TURN})`);
+                } else {
+                    projectFile.history.push({
+                        agent: 'Orchestrator',
+                        timestamp: new Date().toISOString(),
+                        action: 'file_read_failed',
+                        notes: `❌ Failed to read ${result.fileRead.filePath}: ${readResult.error}`,
+                        changes: {
+                            description: 'File read failed',
+                            location: result.fileRead.filePath
+                        }
+                    });
+                }
+
+                fileReadIterations++;
+
+                // Call agent again with updated history (file content now visible)
+                result = await currentAgent.processFile(projectFile, availableTargets);
+            }
+
+            // Add final cost from last call
             cycleCost.total += result.cost;
 
             if (!result.accepted) {
@@ -980,7 +1024,7 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                 console.log(`  ${currentAgent.getName()}: ${result.consensus}`);
             }
 
-            // Update project file history
+            // Update project file history with final action
             projectFile.history.push({
                 agent: currentAgent.getName(),
                 timestamp: new Date().toISOString(),
@@ -994,36 +1038,7 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                 projectFile.content = result.changes.code || projectFile.content;
             }
 
-            // Handle file read requests
-            if (result.fileRead) {
-                const readResult = await this.handleFileRead(result.fileRead, currentAgent.getName());
-
-                if (readResult.success && readResult.content) {
-                    // Add file content to project history so next agent sees it
-                    const lineCount = readResult.content.split('\n').length;
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_read_success',
-                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${readResult.content}`,
-                        changes: {
-                            description: `Read ${lineCount} lines`,
-                            location: result.fileRead.filePath
-                        }
-                    });
-                } else if (!readResult.success) {
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_read_failed',
-                        notes: `❌ Failed to read ${result.fileRead.filePath}: ${readResult.error}`,
-                        changes: {
-                            description: 'File read failed',
-                            location: result.fileRead.filePath
-                        }
-                    });
-                }
-            }
+            // fileRead is now handled in the loop above - no duplicate handling needed
 
             // Handle file edit requests (surgical edits)
             if (result.fileEdit) {
