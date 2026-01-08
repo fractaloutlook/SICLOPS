@@ -1111,11 +1111,17 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
             let nextAgent: Agent | null = null;
 
             if (this.config.requireConsensus === false) {
-                // Fixed workflow order
-                nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
-                if (!nextAgent) {
-                    console.log(`✅ Workflow complete - all agents processed in order`);
-                    break;
+                // Check if agent is self-passing for multi-step work
+                if (result.targetAgent === currentAgent.getName()) {
+                    nextAgent = currentAgent;
+                    console.log(`🔄 ${currentAgent.getName()} self-passing for multi-step work`);
+                } else {
+                    // Fixed workflow order when passing to others
+                    nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                    if (!nextAgent) {
+                        console.log(`✅ Workflow complete - all agents processed in order`);
+                        break;
+                    }
                 }
             } else {
                 // Agent chooses who to pass to
