@@ -303,11 +303,22 @@ export class Agent extends BaseAgent {
 
                 Your turn to contribute to the discussion!
 
+                🏗️ WHAT YOU'RE BUILDING:
+                You're working on YOUR OWN multi-agent framework. This is self-improvement work.
+                - You ARE the product - you're improving yourself and your fellow agents
+                - Bugs and rough edges are expected (this is early POC)
+                - Focus: Get features working first, make them robust later
+                - No external users yet - just building infrastructure for agents (yourselves)
+
                 📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
                 - Read it at start of turn (fileRead) to see your previous thoughts
                 - Update it with new observations (fileEdit) before passing on
                 - Log future ideas there instead of debating them now
                 - Only discuss MVP-critical items in conversation
+
+                📖 HOW FILE READING WORKS:
+                After requesting fileRead, the content appears in your NEXT turn's history.
+                Look for "📖 File content from..." in the "CONVERSATION SO FAR" section above.
 
                 🔄 MULTI-STEP WORK: You can pass to yourself up to 3 times for multi-file tasks.
                 Use this to read multiple files or complete complex operations in one cycle.
@@ -344,16 +355,34 @@ export class Agent extends BaseAgent {
 
                 Available team members to pass to: ${availableTargets.join(', ')}
 
+                🏗️ WHAT YOU'RE BUILDING:
+                You're working on YOUR OWN multi-agent framework. This is self-improvement work.
+                - You ARE the product - you're improving yourself and your fellow agents
+                - Bugs and rough edges are expected (this is early POC)
+                - Focus: Get features working first, make them robust later
+                - No external users yet - just building infrastructure for agents (yourselves)
+
+                Current task: Integrate SharedMemoryCache into orchestrator.ts so agents can share context across runs.
+
                 📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
                 - Read it first (fileRead) to see your previous observations
                 - Update it (fileEdit) with new learnings before passing on
                 - Log non-MVP ideas there instead of implementing them
                 - Review suggestions from other agents in their notebooks
 
+                📖 HOW FILE READING WORKS:
+                - Turn N: Request fileRead → self-pass to yourself
+                - Turn N+1: File content appears in "File history" section above → read and process it
+                - Turn N+2: Make decisions based on what you read, or request another fileRead if needed
+
+                IMPORTANT: After requesting fileRead, the content appears in your NEXT turn's history.
+                Look for "📖 File content from..." in the File history section above.
+                Don't say you "tried to read" something - if you requested it, it worked and is in the history.
+
                 🔄 MULTI-STEP WORK: You can pass to yourself up to 3 times for complex tasks:
-                - Turn 1: Read jordan-notes.md → pass to yourself
-                - Turn 2: Read orchestrator.ts → pass to yourself
-                - Turn 3: Edit orchestrator.ts → pass to next agent
+                - Turn 1: Request fileRead for jordan-notes.md → pass to yourself
+                - Turn 2: See jordan-notes.md content in history, request fileRead for orchestrator.ts → pass to yourself
+                - Turn 3: See orchestrator.ts content in history, make fileEdit → pass to next agent
                 After 3 self-passes, you MUST pass to someone else.
 
                 Based on your role and focus:

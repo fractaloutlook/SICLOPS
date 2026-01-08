@@ -648,9 +648,9 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
                 agent.resetTurnsForNewCycle();
             }
 
-            // Update human notes if provided via command line
+            // Always update human notes - clear if not provided to prevent stale instructions
+            context.humanNotes = this.config.humanComment || '';
             if (this.config.humanComment) {
-                context.humanNotes = this.config.humanComment;
                 console.log(`\n💬 Human comment: "${this.config.humanComment}"\n`);
             }
 
@@ -1005,7 +1005,7 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
                         agent: 'Orchestrator',
                         timestamp: new Date().toISOString(),
                         action: 'file_read_success',
-                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\`\`\`typescript\n${readResult.content}\n\`\`\``,
+                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${readResult.content}`,
                         changes: {
                             description: `Read ${lineCount} lines`,
                             location: result.fileRead.filePath
