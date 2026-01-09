@@ -1,5 +1,6 @@
 import { AgentConfig, ProcessResult, ProjectFile } from './types';
 import { FileUtils } from './utils/file-utils';
+import { shouldAllowAnotherTurn, getProductivitySummary } from './utils/adaptive-limits';
 
 export interface AgentState {
     timesProcessed: number;
@@ -7,6 +8,10 @@ export interface AgentState {
     totalCost: number;
     totalTokensUsed: number;
     consecutiveSelfPasses: number;  // Track self-passes to enable multi-step work
+    // Productivity tracking for adaptive limits
+    fileReads: number;
+    fileEdits: number;
+    fileWrites: number;
     operations: {
         timestamp: Date;
         operation: string;
@@ -30,6 +35,9 @@ export abstract class BaseAgent {
             totalCost: 0,
             totalTokensUsed: 0,
             consecutiveSelfPasses: 0,
+            fileReads: 0,
+            fileEdits: 0,
+            fileWrites: 0,
             operations: []
         };
         
@@ -40,7 +48,26 @@ export abstract class BaseAgent {
     abstract processFile(file: ProjectFile, availableTargets: string[]): Promise<ProcessResult>;
 
     canProcess(): boolean {
-        return this.state.timesProcessed < 6;  // Increased for conversation mode
+        const decision = shouldAllowAnotherTurn({
+            fileReads: this.state.fileReads,
+            fileEdits: this.state.fileEdits,
+            fileWrites: this.state.fileWrites,
+            selfPasses: this.state.consecutiveSelfPasses,
+            turnsUsed: this.state.timesProcessed
+        }, 6); // Base limit of 6
+
+        if (!decision.shouldContinue && this.state.timesProcessed > 0) {
+            console.log(`\n⏹️  ${this.config.name}: ${decision.reason}`);
+            console.log(`   ${getProductivitySummary({
+                fileReads: this.state.fileReads,
+                fileEdits: this.state.fileEdits,
+                fileWrites: this.state.fileWrites,
+                selfPasses: this.state.consecutiveSelfPasses,
+                turnsUsed: this.state.timesProcessed
+            })}\n`);
+        }
+
+        return decision.shouldContinue;
     }
 
     restoreState(savedState: { timesProcessed: number; totalCost: number }): void {
@@ -51,6 +78,21 @@ export abstract class BaseAgent {
     resetTurnsForNewCycle(): void {
         this.state.timesProcessed = 0;
         this.state.consecutiveSelfPasses = 0;
+        this.state.fileReads = 0;
+        this.state.fileEdits = 0;
+        this.state.fileWrites = 0;
+    }
+
+    trackFileRead(): void {
+        this.state.fileReads++;
+    }
+
+    trackFileEdit(): void {
+        this.state.fileEdits++;
+    }
+
+    trackFileWrite(): void {
+        this.state.fileWrites++;
     }
 
     protected async log(message: string, data?: any): Promise<void> {

@@ -6,6 +6,11 @@ import OpenAI from 'openai';
 import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
 import { SharedMemoryCache } from './memory/shared-cache';
 import { generateVersion } from './utils/version-utils';
+import { detectTaskCompletion, shouldContinueNextCycle } from './utils/task-completion';
+import { displayProgressDashboard, extractProgressFromHistory, displayCycleSummary, extractKeyActions } from './utils/progress-dashboard';
+import { autoCommitCycle, extractChangedFiles, generateCycleSummary } from './utils/git-auto-commit';
+import { summarizeContext, getContextHealth } from './utils/context-summarizer';
+import { runCycleTests } from './utils/simple-test';
 
 interface OrchestratorConfig {
     maxCycles: number;
@@ -23,11 +28,14 @@ export class Orchestrator {
     private openaiClient: OpenAI;
     private cycleCount: number = 0;
     private cycleCosts: Array<{cycle: string, total: number, logPath: string}> = [];
+    private sharedCache: SharedMemoryCache;
 
     constructor(private config: OrchestratorConfig) {
         this.anthropicClient = new Anthropic({ apiKey: API_KEYS.anthropic });
         this.openaiClient = new OpenAI({ apiKey: API_KEYS.openai });
         this.agents = new Map<string, Agent>();
+        this.sharedCache = new SharedMemoryCache();
+        console.log('✅ SharedMemoryCache initialized');
         this.initializeAgents();
     }
 
@@ -60,6 +68,20 @@ export class Orchestrator {
             const content = await FileUtils.readFile(contextPath);
             const context = JSON.parse(content) as OrchestratorContext;
             console.log(`📖 Loaded context from run #${context.runNumber}`);
+
+            // Load cached decisions into SharedMemoryCache
+            if (context.discussionSummary?.keyDecisions) {
+                for (const decision of context.discussionSummary.keyDecisions) {
+                    this.sharedCache.store(
+                        `decision_${Date.now()}_${Math.random()}`,
+                        decision,
+                        'decision',
+                        'Loaded from previous run context'
+                    );
+                }
+                console.log(`   💾 Loaded ${context.discussionSummary.keyDecisions.length} cached decisions`);
+            }
+
             return context;
         } catch (error) {
             // No context file exists - this is a fresh start
@@ -70,6 +92,15 @@ export class Orchestrator {
     async saveContext(context: OrchestratorContext): Promise<void> {
         const contextPath = this.getContextPath();
         await FileUtils.ensureDir(`${this.config.logDirectory}/../state`);
+
+        // Check if context needs summarization
+        const health = getContextHealth(context);
+        if (health.needsSummarization) {
+            console.log(`\n📦 Summarizing context (${health.historySize} entries, ~${health.estimatedTokens} tokens)`);
+            context = summarizeContext(context);
+            console.log(`   ✨ Reduced to ${context.history.length} entries\n`);
+        }
+
         await FileUtils.writeFile(contextPath, JSON.stringify(context, null, 2));
     }
 
@@ -263,6 +294,19 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Format file content with line numbers for agent display.
+     * This allows agents to reference specific locations even though
+     * edits use pattern matching (not line numbers).
+     */
+    private formatWithLineNumbers(content: string): string {
+        const lines = content.split('\n');
+        const padding = String(lines.length).length;
+        return lines.map((line, i) =>
+            `${String(i + 1).padStart(padding)} | ${line}`
+        ).join('\n');
+    }
+
+    /**
      * Handles file read requests from agents
      */
     private async handleFileRead(fileRead: FileReadRequest, agentName: string): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -289,7 +333,16 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
-     * Handles file edit requests (surgical line edits)
+     * Handles file edit requests using PATTERN MATCHING (not line numbers).
+     *
+     * Each edit specifies:
+     *   - find: exact string to locate (must be unique in file)
+     *   - replace: what to replace it with
+     *
+     * This approach is more robust than line-based editing because:
+     *   1. Agents don't need to count lines
+     *   2. The pattern itself serves as verification
+     *   3. It's the same approach Claude Code uses successfully
      */
     private async handleFileEdit(fileEdit: FileEditRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
         console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit.filePath}`);
@@ -307,35 +360,58 @@ ${context.humanNotes || '(None)'}
                 return { success: false, error: 'File does not exist - use fileWrite to create new files' };
             }
 
-            const content = await FileUtils.readFile(fileEdit.filePath);
-            const lines = content.split('\n');
+            let content = await FileUtils.readFile(fileEdit.filePath);
 
-            // Apply edits
-            const editedLines = [...lines];
-            for (const edit of fileEdit.edits) {
-                // Verify old content matches (safety check)
-                const actualOldContent = lines.slice(edit.lineStart - 1, edit.lineEnd).join('\n');
-                if (actualOldContent.trim() !== edit.oldContent.trim()) {
-                    console.error(`   ❌ Edit verification failed at lines ${edit.lineStart}-${edit.lineEnd}`);
-                    console.error(`   Expected: "${edit.oldContent.substring(0, 100)}..."`);
-                    console.error(`   Found: "${actualOldContent.substring(0, 100)}..."`);
+            // Apply each edit using pattern matching
+            for (let i = 0; i < fileEdit.edits.length; i++) {
+                const edit = fileEdit.edits[i];
+                const findPattern = edit.find;
+
+                // Check if pattern exists
+                const firstIndex = content.indexOf(findPattern);
+                if (firstIndex === -1) {
+                    // Pattern not found - provide helpful error
+                    const preview = findPattern.length > 80
+                        ? findPattern.substring(0, 80) + '...'
+                        : findPattern;
+                    console.error(`   ❌ Edit ${i + 1}: Pattern not found`);
+                    console.error(`   Looking for: "${preview}"`);
+
+                    // Try to find similar content (first 30 chars)
+                    const searchStart = findPattern.substring(0, 30);
+                    if (content.includes(searchStart)) {
+                        console.error(`   💡 Hint: Found "${searchStart}" but full pattern doesn't match`);
+                        console.error(`   Check for whitespace differences or truncation`);
+                    }
+
                     return {
                         success: false,
-                        error: `Content mismatch at lines ${edit.lineStart}-${edit.lineEnd}. File may have changed.`
+                        error: `Edit ${i + 1}: Pattern not found in file. Make sure the 'find' string exactly matches the file content (including whitespace).`
                     };
                 }
 
-                // Apply edit
-                const newLines = edit.newContent.split('\n');
-                editedLines.splice(edit.lineStart - 1, edit.lineEnd - edit.lineStart + 1, ...newLines);
-                console.log(`   ✓ Applied edit at lines ${edit.lineStart}-${edit.lineEnd}`);
-            }
+                // Check if pattern is unique
+                const lastIndex = content.lastIndexOf(findPattern);
+                if (firstIndex !== lastIndex) {
+                    const occurrences = content.split(findPattern).length - 1;
+                    console.error(`   ❌ Edit ${i + 1}: Pattern appears ${occurrences} times - must be unique`);
+                    console.error(`   Add more surrounding context to make the pattern unique`);
+                    return {
+                        success: false,
+                        error: `Edit ${i + 1}: Pattern appears ${occurrences} times in file. Add more context to make it unique.`
+                    };
+                }
 
-            const newContent = editedLines.join('\n');
+                // Apply the replacement
+                content = content.replace(findPattern, edit.replace);
+                const charDiff = edit.replace.length - findPattern.length;
+                const diffStr = charDiff >= 0 ? `+${charDiff}` : `${charDiff}`;
+                console.log(`   ✓ Edit ${i + 1}: Applied (${diffStr} chars)`);
+            }
 
             // Write to temp file for validation
             const tempPath = `${fileEdit.filePath}.tmp`;
-            await FileUtils.writeFile(tempPath, newContent);
+            await FileUtils.writeFile(tempPath, content);
 
             // Validate TypeScript
             console.log(`   🔍 Validating TypeScript compilation...`);
@@ -355,7 +431,7 @@ ${context.humanNotes || '(None)'}
                 const codeChange: CodeChange = {
                     file: fileEdit.filePath,
                     action: 'edit',
-                    content: newContent,
+                    content: content,
                     appliedAt: new Date().toISOString(),
                     validatedAt: new Date().toISOString(),
                     status: 'validated'
@@ -371,7 +447,7 @@ ${context.humanNotes || '(None)'}
                 console.error(`   ❌ TypeScript compilation failed:`);
                 console.error(`   ${errorMsg.substring(0, 500)}`);
 
-                // Save failed attempt
+                // Save failed attempt for debugging
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const failedPath = `${fileEdit.filePath}.failed.${timestamp}.ts`;
                 const fs = await import('fs/promises');
@@ -556,29 +632,35 @@ DO NOT embed code in "changes.code" - it will be truncated!
 \`\`\`
 Next agent will see file content in project history.
 
-**2. EDIT existing files (surgical changes - PREFERRED for existing code!):**
-For files < 1000 lines, use surgical edits (saves massive tokens):
+**2. EDIT existing files (PATTERN MATCHING - like Claude Code!):**
+Use find/replace pattern matching. File content shows line numbers for reference.
 \`\`\`json
 {
   "fileEdit": {
     "action": "edit_file",
     "filePath": "src/memory/shared-cache.ts",
     "edits": [{
-      "lineStart": 347,
-      "lineEnd": 347,
-      "oldContent": "return Array.from(this.cache.values()).reduce((sum, e) => sum + e.tokens, 0);",
-      "newContent": "return Array.from(this.cache.values()).reduce((sum: number, e) => sum + e.tokens, 0);"
+      "find": "return Array.from(this.cache.values()).reduce((sum, e) => sum + e.tokens, 0);",
+      "replace": "return Array.from(this.cache.values()).reduce((sum: number, e) => sum + e.tokens, 0);"
     }],
-    "reason": "Fix TypeScript error: Type 'unknown' is not assignable to type 'number'"
+    "reason": "Fix TypeScript error: add type annotation to sum parameter"
   },
   "target": "Jordan",
   "reasoning": "Fixed type error. Jordan, verify it compiles."
 }
 \`\`\`
+
+**How pattern matching works:**
+- "find": The EXACT string to locate in the file (must be unique)
+- "replace": What to replace it with
+- Include enough context in "find" to make it unique (e.g., full function signature, not just one line)
+- If "find" appears multiple times, the edit will FAIL - add more context to make it unique
+- Whitespace matters! Copy the exact string from the file content shown
+
 **Use fileEdit for:**
-- Fixing bugs (change specific lines)
-- Adding types to existing code
-- Refactoring specific functions
+- Fixing bugs
+- Adding types
+- Refactoring functions
 - Any change to existing files
 
 **3. WRITE new files (full content - only for NEW files!):**
@@ -605,14 +687,14 @@ For files < 1000 lines, use surgical edits (saves massive tokens):
 ✅ Track in context
 
 **WORKFLOW:**
-1. fileRead → see what's there
-2. fileEdit → fix it (or fileWrite if new)
+1. fileRead → see file content WITH LINE NUMBERS
+2. fileEdit → use pattern matching to find & replace (or fileWrite if brand new)
 3. Next agent sees results
 
-**File size limits:**
-- < 200 lines: Either edit or write
-- 200-1000 lines: Prefer edit (saves tokens!)
-- \> 1000 lines: MUST use edit, no full rewrites
+**Best practices:**
+- ALWAYS read a file before editing it
+- Copy exact strings from the displayed content for "find"
+- Include multiple lines if needed to make the pattern unique
 
 When implementation is complete and validated, signal consensus="agree".
 ${context.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
@@ -664,8 +746,15 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
         }
 
         while (this.cycleCount < this.config.maxCycles) {
-            await this.runCycle();
+            const cycleResult = await this.runCycle();
             this.cycleCount++;
+
+            // Stop early if task is complete with high confidence
+            if (cycleResult.taskComplete) {
+                console.log(`\n✅ Stopping early - task completed: ${cycleResult.completionReason}\n`);
+                break;
+            }
+
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
@@ -776,6 +865,19 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
             timestamp: new Date().toISOString()
         });
 
+        // Store new decisions in SharedMemoryCache
+        if (projectFileHistory && projectFileHistory.length > 0) {
+            const recentDecisions = context.discussionSummary.keyDecisions.slice(-5); // Last 5
+            for (const decision of recentDecisions) {
+                this.sharedCache.store(
+                    `decision_${Date.now()}_${Math.random()}`,
+                    decision,
+                    'decision',
+                    'Stored from current cycle'
+                );
+            }
+        }
+
         // Update context
         context.agentStates = agentStates;
         context.totalCost += totalCost;
@@ -785,7 +887,7 @@ Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
         console.log(`\n💾 Saved context for run #${context.runNumber}`);
     }
 
-    private async runCycle(): Promise<void> {
+    private async runCycle(): Promise<{ taskComplete: boolean; completionReason?: string }> {
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const cycleId = `cycle_${String(this.cycleCount + 1).padStart(3, '0')}`;
@@ -880,7 +982,7 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         // sim mode
         if (this.config.simulationMode) {
             await this.runSimulationCycle(cyclePath, cycleId);
-            return;
+            return { taskComplete: false, completionReason: 'Simulation mode' };
         }
 
         // Pick first available agent
@@ -978,11 +1080,13 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
 
                 if (readResult.success && readResult.content) {
                     const lineCount = readResult.content.split('\n').length;
+                    // Display content WITH LINE NUMBERS so agents can reference specific locations
+                    const numberedContent = this.formatWithLineNumbers(readResult.content);
                     projectFile.history.push({
                         agent: 'Orchestrator',
                         timestamp: new Date().toISOString(),
                         action: 'file_read_success',
-                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${readResult.content}`,
+                        notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${numberedContent}`,
                         changes: {
                             description: `Read ${lineCount} lines`,
                             location: result.fileRead.filePath
@@ -1176,8 +1280,51 @@ Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
         this.cycleCosts.push(cycleCost);
         await this.updateCostSummary();
 
+        // Display progress dashboard
+        const progress = extractProgressFromHistory(projectFile, cycleCost.total);
+        progress.cycle = this.cycleCount;
+        displayProgressDashboard(progress);
+
+        // Display cycle summary with key actions
+        const keyActions = extractKeyActions(projectFile);
+        displayCycleSummary(this.cycleCount, progress, keyActions);
+
+        // Run tests on changed files
+        const changedFiles = extractChangedFiles(projectFile.history);
+        if (changedFiles.length > 0) {
+            const testResult = await runCycleTests(changedFiles);
+            if (testResult.success) {
+                console.log(`✅ All checks passed (${testResult.testsPassed}/${testResult.testsPassed})\n`);
+
+                // Auto-commit successful code changes only if tests pass
+                const commitSummary = generateCycleSummary(projectFile.history);
+                const commitResult = await autoCommitCycle(this.cycleCount, changedFiles, commitSummary);
+                if (commitResult.success && commitResult.commitHash) {
+                    console.log(`📝 ${commitResult.message}\n`);
+                }
+            } else {
+                console.log(`❌ Tests failed (${testResult.testsFailed} issues) - skipping auto-commit\n`);
+                if (testResult.errors.length > 0) {
+                    console.log(`Errors:\n${testResult.errors.slice(0, 3).map(e => `  - ${e}`).join('\n')}\n`);
+                }
+            }
+        }
+
+        // Check if task is complete
+        const completionResult = detectTaskCompletion(projectFile, this.cycleCount);
+        if (completionResult.isComplete) {
+            console.log(`\n🎯 TASK COMPLETION DETECTED`);
+            console.log(`   Reason: ${completionResult.reason}`);
+            console.log(`   Confidence: ${(completionResult.confidence * 100).toFixed(0)}%\n`);
+        }
+
         // Always save context and extract key decisions (even if no consensus signals)
         await this.updateContextAtEnd(consensusSignals, projectFile.history);
+
+        return {
+            taskComplete: completionResult.isComplete,
+            completionReason: completionResult.reason
+        };
     }
 
     private async generateNarrativeSummary(): Promise<void> {

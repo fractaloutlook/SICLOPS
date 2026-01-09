@@ -1,3 +1,17 @@
+/**
+ * Configuration file for the SICLOPS multi-agent system.
+ * 
+ * Defines agent personalities, roles, models, and workflow order.
+ * Loads API keys from environment variables via dotenv.
+ * 
+ * Each agent has:
+ * - name: Display name
+ * - role: Job title/function
+ * - model: Claude model version to use
+ * - personality: Character description for prompting
+ * - version: Release version tracking
+ * - taskFocus: Core responsibilities
+ */
 import dotenv from 'dotenv';
 import { AgentConfig } from './types';
 

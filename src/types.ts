@@ -71,10 +71,10 @@ export interface FileEditRequest {
     action: 'edit_file';
     filePath: string;
     edits: Array<{
-        lineStart: number;
-        lineEnd: number;
-        oldContent: string;  // What should be there (verification)
-        newContent: string;  // What to replace it with
+        // Pattern matching approach (like Claude Code)
+        // Find a unique string in the file and replace it
+        find: string;     // Exact string to find (must be unique in file)
+        replace: string;  // What to replace it with
     }>;
     reason: string;
 }

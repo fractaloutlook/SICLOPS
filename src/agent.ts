@@ -3,6 +3,7 @@ import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequ
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { FileUtils } from './utils/file-utils';
+import { retryWithBackoff } from './utils/error-recovery';
 
 interface ApiResponse {
     changes: {
@@ -316,6 +317,13 @@ export class Agent extends BaseAgent {
                 **Your Role:**
                 You're ${this.config.name} (${this.config.role}). ${this.config.personality}
 
+                **How Your System Runs:**
+                Your system runs continuously in cycles, alternating between two stages:
+                1. **Discussion/Consensus Stage:** Decide what to implement next as a team
+                2. **Implementation Stage:** Write the code for what you decided
+
+                The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
+
                 **Context:**
                 - This is early POC - bugs expected, focus on working features first
                 - No external users - building infrastructure for yourselves
@@ -401,6 +409,13 @@ export class Agent extends BaseAgent {
                 You're ${this.config.name} (${this.config.role}). ${this.config.personality}
                 Your focus: ${this.config.taskFocus}
 
+                **How Your System Runs:**
+                Your system is designed to run continuously in cycles, alternating between two stages:
+                1. **Discussion/Consensus Stage:** Decide what to implement next as a team
+                2. **Implementation Stage:** Write the code for what you decided
+
+                The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
+
                 **Important Context:**
                 - This is early POC - bugs and rough edges are expected
                 - Focus on getting features working first, robustness later
@@ -428,6 +443,22 @@ export class Agent extends BaseAgent {
                 All of this happens in ONE turn! No self-passing needed for file reads.
                 Look for "📖 File content from..." in the File history section - it appears immediately after you request it.
 
+                ⚠️ CRITICAL: EVERY TURN MUST PRODUCE ACTION
+                DO NOT just read files and pass without doing something productive!
+
+                **Required: After reading files, you MUST:**
+                - Make code changes (fileEdit or fileWrite), OR
+                - Update your notebook with observations (fileEdit on notes/*.md), OR
+                - Pass with explicit reasoning why NO action is needed this turn
+
+                **FORBIDDEN:**
+                ❌ Reading files → passing → reading same files again → passing (INFINITE LOOP!)
+                ❌ Self-passing more than once without making file changes
+                ❌ Reading notebooks but not updating them with new information
+                ❌ Saying "waiting for X" when YOU could do the work yourself
+
+                **Cost awareness:** Each turn costs ~$0.50-0.70. Make it count!
+
                 🔄 WHEN TO SELF-PASS:
                 - Use self-passing ONLY if you need to wait for fileEdit/fileWrite results to be validated
                 - For just reading files: NO self-pass needed (happens within same turn)
@@ -454,14 +485,19 @@ export class Agent extends BaseAgent {
                 }`;
 
             if (this.apiClient instanceof Anthropic) {
-                const apiResponse = await this.apiClient.messages.create({
-                    model: this.config.model,
-                    max_tokens: 8192,  // Increased to prevent truncation of long responses
-                    messages: [{
-                        role: 'user',
-                        content: prompt
-                    }]
-                });
+                const anthropicClient = this.apiClient as Anthropic;
+                const apiResponse = await retryWithBackoff(
+                    () => anthropicClient.messages.create({
+                        model: this.config.model,
+                        max_tokens: 8192,  // Increased to prevent truncation of long responses
+                        messages: [{
+                            role: 'user',
+                            content: prompt
+                        }]
+                    }),
+                    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
+                    `${this.config.name} API call`
+                );
                 
                 if (!apiResponse.usage) {
                     throw new Error('No usage data in response');
@@ -474,7 +510,7 @@ export class Agent extends BaseAgent {
                 
                 cost = this.calculateClaudeCost(tokens.input, tokens.output);
                 
-                const textContent = apiResponse.content.find(block => block.type === 'text');
+                const textContent = apiResponse.content.find((block: any) => block.type === 'text');
                 if (!textContent || !('text' in textContent)) {
                     throw new Error('No text content in response');
                 }
@@ -494,16 +530,20 @@ export class Agent extends BaseAgent {
 
                 
             } else {
-                const apiResponse = await (this.apiClient as OpenAI).chat.completions.create({
-                    model: this.config.model,
-                    messages: [{
-                        role: 'system',
-                        content: `You are ${this.config.name}. ${this.config.personality}\nYour focus: ${this.config.taskFocus}`
-                    }, {
-                        role: 'user',
-                        content: prompt
-                    }]
-                });
+                const apiResponse = await retryWithBackoff(
+                    () => (this.apiClient as OpenAI).chat.completions.create({
+                        model: this.config.model,
+                        messages: [{
+                            role: 'system',
+                            content: `You are ${this.config.name}. ${this.config.personality}\nYour focus: ${this.config.taskFocus}`
+                        }, {
+                            role: 'user',
+                            content: prompt
+                        }]
+                    }),
+                    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
+                    `${this.config.name} API call`
+                );
 
                 if (!apiResponse.usage || !apiResponse.choices[0]?.message?.content) {
                     throw new Error('Invalid API response structure');
@@ -561,6 +601,11 @@ export class Agent extends BaseAgent {
                 fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite
             });
+
+            // Track file operations for adaptive turn limits
+            if (response.fileRead) this.trackFileRead();
+            if (response.fileEdit) this.trackFileEdit();
+            if (response.fileWrite) this.trackFileWrite();
 
             return {
                 accepted: true,
