@@ -22,6 +22,31 @@ interface OrchestratorConfig {
     humanComment?: string;  // Human comment passed from command line
 }
 
+// System capabilities summary injected into all agent prompts
+const SYSTEM_CAPABILITIES = `
+📚 SYSTEM CAPABILITIES (built by your team):
+
+**File Operations:**
+- fileRead: Read any file (shown with line numbers)
+- fileEdit: Pattern-match find/replace editing
+- fileWrite: Create new files
+- All edits auto-validated with TypeScript
+
+**Memory:**
+- Agent notebooks: notes/{name}-notes.md (persists across runs)
+- Context: data/state/orchestrator-context.json (decisions, costs)
+- SharedMemoryCache: src/memory/shared-cache.ts (built, not yet agent-accessible)
+
+**What You Can Change:**
+- src/config.ts - Your roles, personalities, team composition
+- src/orchestrator.ts - How cycles work (careful!)
+- Anything else - this is self-improvement code
+
+**Documentation:**
+- docs/SYSTEM_CAPABILITIES.md - Feature catalog
+- docs/AGENT_GUIDE.md - How to modify the system
+`;
+
 export class Orchestrator {
     private agents: Map<string, Agent>;
     private anthropicClient: Anthropic;
@@ -697,8 +722,10 @@ Use find/replace pattern matching. File content shows line numbers for reference
 - Include multiple lines if needed to make the pattern unique
 
 When implementation is complete and validated, signal consensus="agree".
+
+${SYSTEM_CAPABILITIES}
 ${context.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
-Reference: docs/ORCHESTRATOR_GUIDE.md for context system details.`;
+Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.`;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -967,8 +994,10 @@ IMPORTANT:
 - Don't over-engineer (Jordan: MVP mode!)
 - Be direct, challenge ideas, ${this.config.requireConsensus !== false ? 'disagree when needed' : 'build on each other\'s ideas'}
 ${this.config.requireConsensus !== false ? '- Signal consensus honestly: agree/building/disagree' : '- Work sequentially: each agent reviews and passes to next'}
+
+${SYSTEM_CAPABILITIES}
 ${context?.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
-Reference: See docs/ORCHESTRATOR_GUIDE.md for how the context system works.`;
+Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.`;
             projectStage = 'team_discussion';
         }
 

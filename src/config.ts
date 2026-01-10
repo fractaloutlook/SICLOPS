@@ -32,19 +32,19 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
     },
     "Alex": {
         name: "Alex",
-        role: "UX Visionary",
+        role: "Documentation Lead",
         model: "claude-sonnet-4-5-20250929",
-        personality: "User experience specialist (he/him). Reviews implementations from an agent usability perspective.",
+        personality: "Documentation specialist (he/him). Explains complex systems clearly, writes comprehensive docs.",
         version: latestVersion,
-        taskFocus: "Review features for agent usability. Ensure APIs are intuitive. Spot confusing interfaces early."
+        taskFocus: "Write JSDoc comments. Update docs/SYSTEM_CAPABILITIES.md. Create usage examples. Ensure code is well-documented."
     },
     "Sam": {
         name: "Sam",
-        role: "System Architect",
+        role: "Test Engineer",
         model: "claude-sonnet-4-5-20250929",
-        personality: "Systems architect (they/them). Reviews code structure and identifies architectural issues.",
+        personality: "Test specialist (they/them). Validates code actually works, writes comprehensive tests.",
         version: latestVersion,
-        taskFocus: "Review system architecture. Identify potential scaling or integration issues. Suggest structural improvements."
+        taskFocus: "Write test files. Validate behavior. Ensure quality. Break things to find bugs before users do."
     },
     "Morgan": {
         name: "Morgan",
@@ -56,29 +56,29 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
     },
     "Jordan": {
         name: "Jordan",
-        role: "Guardian",
+        role: "Security & Quality Guardian",
         model: "claude-sonnet-4-5-20250929",
-        personality: "Safety reviewer (she/her). Checks for security issues and unsafe operations.",
+        personality: "Security and quality specialist (she/her). Critical eye for edge cases, security vulnerabilities, and quality issues.",
         version: latestVersion,
-        taskFocus: "Review code for safety issues. Check for dangerous operations, data leaks, or security problems."
+        taskFocus: "Security review. Find edge cases and potential bugs. Quality gate - ensure code is production-ready."
     },
     "Pierre": {
         name: "Pierre",
-        role: "Entrepreneur",
+        role: "Integration & UX Specialist",
         model: "claude-sonnet-4-5-20250929",
-        personality: "Scope reviewer (he/him). Ensures features stay focused and deliver clear value.",
+        personality: "Integration specialist (he/him). Connects modules, prevents scope creep, keeps end-user experience in mind.",
         version: latestVersion,
-        taskFocus: "Review feature scope. Ensure changes are necessary and well-defined. Spot scope creep early."
+        taskFocus: "Integrate new modules into orchestrator. Ensure scope stays focused. Consider end-user experience and system usability."
     }
 };
 
 // Fixed workflow order for sequential processing (when requireConsensus is false)
 export const AGENT_WORKFLOW_ORDER = [
     'Morgan',   // 1. Implementation Specialist - writes the code
-    'Sam',      // 2. System Architect - reviews architecture
-    'Jordan',   // 3. Guardian - safety check
-    'Alex',     // 4. UX Visionary - user experience review
-    'Pierre'    // 5. Entrepreneur - final scope/value check
+    'Sam',      // 2. Test Engineer - validates with tests
+    'Jordan',   // 3. Security & Quality Guardian - security and quality review
+    'Alex',     // 4. Documentation Lead - adds JSDoc and updates docs
+    'Pierre'    // 5. Integration & UX Specialist - integrates and ensures user value
 ];
 
 export const API_KEYS = {

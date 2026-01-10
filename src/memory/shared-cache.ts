@@ -2,10 +2,63 @@ import { EventEmitter } from 'events';
 
 /**
  * SharedMemoryCache: Three-bucket LRU cache for agent context sharing
- * - Transient: Short-lived context (TTL: 1 hour)
- * - Decision: Important decisions (TTL: 24 hours)
- * - Sensitive: Sensitive data, manual-only eviction (TTL: 7 days)
- * Hard cap: 50k tokens total. Sensitive gets 10% (~5k tokens).
+ *
+ * PURPOSE:
+ * Allows agents to share context and decisions across multiple runs, preventing
+ * re-discussion of settled topics and maintaining institutional knowledge.
+ *
+ * ARCHITECTURE:
+ * - Three priority buckets with different TTLs and eviction policies
+ * - Token-aware capacity management (prevents memory overflow)
+ * - LRU (Least Recently Used) eviction when capacity exceeded
+ * - Comprehensive event logging for observability
+ *
+ * BUCKETS:
+ * - transient: Temporary context for current task (TTL: 1 hour, auto-evict)
+ *   Use for: Work-in-progress notes, temporary findings
+ *
+ * - decision: Team consensus outcomes (TTL: 24 hours, auto-evict)
+ *   Use for: Voted decisions, API designs, architecture choices
+ *
+ * - sensitive: Long-term critical data (TTL: 7 days, manual-evict only)
+ *   Use for: Security findings, user preferences, credentials metadata
+ *   Quota: 5000 tokens (10% of total), never auto-evicted
+ *
+ * CAPACITY:
+ * - Hard cap: 50,000 tokens total
+ * - When full, evicts LRU entries from transient/decision (never sensitive)
+ * - Throws error if sensitive bucket full or total capacity exceeded
+ *
+ * USAGE EXAMPLE:
+ *
+ * // After team reaches consensus on REST API design
+ * cache.store(
+ *   'rest_api_design_v2',
+ *   JSON.stringify({ endpoints: [...], auth: 'JWT' }),
+ *   'decision',
+ *   'Team consensus from run #15: Chose REST over GraphQL'
+ * );
+ *
+ * // In next run, check if already decided
+ * const cached = cache.retrieve('rest_api_design_v2');
+ * if (cached) {
+ *   const design = JSON.parse(cached as string);
+ *   console.log('Already decided:', design);
+ * } else {
+ *   // Need to discuss and decide
+ * }
+ *
+ * INTEGRATION STATUS:
+ * - Currently instantiated by Orchestrator (orchestrator.ts:37)
+ * - Loaded with previous decisions on context load (orchestrator.ts:73-83)
+ * - Stores new decisions at cycle end (orchestrator.ts:817-828)
+ * - NOT YET exposed to agents directly (no agent API for store/retrieve)
+ *
+ * FUTURE ENHANCEMENTS:
+ * - Add agent-facing API to store/retrieve during turns
+ * - Persistence to disk across process restarts
+ * - Query/search capabilities across cached entries
+ * - Export to JSON for human inspection
  */
 
 type CacheBucket = 'transient' | 'decision' | 'sensitive';
@@ -47,7 +100,32 @@ export class SharedMemoryCache extends EventEmitter {
   }
 
   /**
-   * Store a value in the cache with token awareness
+   * Store a value in the cache with automatic token estimation and eviction.
+   *
+   * @param key - Unique identifier for this cached value
+   * @param value - Any JSON-serializable value (string, object, array, etc.)
+   * @param bucket - Which bucket to store in: 'transient' | 'decision' | 'sensitive'
+   * @param reason - Optional human-readable note explaining why this was cached
+   *                 (for observability only, never affects eviction logic)
+   *
+   * @throws Error if sensitive bucket quota exceeded or total capacity can't be freed
+   *
+   * @example
+   * // Store a team decision
+   * cache.store(
+   *   'chosen_database',
+   *   { type: 'PostgreSQL', reason: 'Better JSON support' },
+   *   'decision',
+   *   'Team vote: 4/5 agreed on Postgres over MySQL'
+   * );
+   *
+   * @example
+   * // Store temporary work context
+   * cache.store(
+   *   'current_refactor_status',
+   *   'Halfway through auth module - need to finish token validation',
+   *   'transient'
+   * );
    */
   store(key: string, value: unknown, bucket: CacheBucket, reason?: string): void {
     const tokens = this.estimateTokens(value);
@@ -111,7 +189,22 @@ export class SharedMemoryCache extends EventEmitter {
   }
 
   /**
-   * Retrieve a value from the cache
+   * Retrieve a value from the cache, checking TTL expiration.
+   *
+   * @param key - The key to look up
+   * @returns The cached value, or null if not found/expired
+   *
+   * Note: Automatically updates lastAccessedAt for LRU tracking
+   *
+   * @example
+   * // Check if team already decided on a database
+   * const dbChoice = cache.retrieve('chosen_database');
+   * if (dbChoice) {
+   *   console.log('Already decided:', dbChoice);
+   *   // Skip re-discussion
+   * } else {
+   *   // Need to discuss and vote
+   * }
    */
   retrieve(key: string): unknown | null {
     const entry = this.cache.get(key);
@@ -156,7 +249,17 @@ export class SharedMemoryCache extends EventEmitter {
   }
 
   /**
-   * Manually evict a key (useful for sensitive data)
+   * Manually evict a key from the cache.
+   *
+   * This is the ONLY way to remove items from the 'sensitive' bucket
+   * (they never auto-evict on TTL or capacity pressure).
+   *
+   * @param key - The key to remove
+   * @returns true if evicted, false if key didn't exist
+   *
+   * @example
+   * // Remove sensitive data after use
+   * cache.evict('api_credentials_temp');
    */
   evict(key: string): boolean {
     const entry = this.cache.get(key);
@@ -178,7 +281,17 @@ export class SharedMemoryCache extends EventEmitter {
   }
 
   /**
-   * Get cache statistics
+   * Get current cache statistics for monitoring and debugging.
+   *
+   * @returns Object containing:
+   *   - totalTokens: Total tokens across all buckets
+   *   - entryCount: Total number of cached entries
+   *   - bucketStats: Per-bucket breakdown of tokens and entry counts
+   *
+   * @example
+   * const stats = cache.getStats();
+   * console.log(`Cache using ${stats.totalTokens}/50000 tokens`);
+   * console.log(`Decisions cached: ${stats.bucketStats.decision.entries}`);
    */
   getStats(): CacheStats {
     const stats: CacheStats = {
@@ -269,7 +382,8 @@ export class SharedMemoryCache extends EventEmitter {
 
   private startCleanupLoop(): void {
     // Run cleanup every 5 minutes
-    setInterval(() => {
+    // Use unref() so the interval doesn't prevent process exit
+    const interval = setInterval(() => {
       const now = Date.now();
       let evicted = 0;
 
@@ -300,5 +414,8 @@ export class SharedMemoryCache extends EventEmitter {
         });
       }
     }, 5 * 60 * 1000);
+
+    // Don't let this interval prevent the process from exiting
+    interval.unref();
   }
 }
