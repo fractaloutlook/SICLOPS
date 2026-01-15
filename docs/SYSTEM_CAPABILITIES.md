@@ -174,7 +174,21 @@
   });
   ```
 
-### TypeScript Validation
+### Security & Validation
+
+#### Path Validation ✅ NEW
+- **Module:** `src/validation/path-validator.ts`
+- **Purpose:** Prevent path traversal attacks and enforce security boundaries
+- **Features:**
+  - Directory whitelisting (src/, tests/, docs/, notes/)
+  - Path traversal prevention (blocks ../ attempts)
+  - Sensitive file protection (.env, node_modules, .git)
+  - File size limits (100KB default)
+  - Operation count limits (5 per turn)
+- **Integration:** Called automatically before all file operations
+- **Test Coverage:** Comprehensive test suite at `src/validation/__tests__/path-validator.test.ts`
+
+#### TypeScript Validation
 - **Automatic:** Every fileWrite and fileEdit
 - **Command:** `npx tsc --noEmit`
 - **Timeout:** 30 seconds
