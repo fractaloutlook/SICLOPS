@@ -653,13 +653,17 @@ ${context.humanNotes || '(None)'}
      * Returns: 'completion' | 'design' | 'unclear'
      */
     private detectConsensusType(keyDecisions: string[]): 'completion' | 'design' | 'unclear' {
+        // Only look at the 3 most recent decisions to avoid stale "completion" language
+        // from previous tasks polluting the detection
+        const recentDecisions = keyDecisions.slice(-3);
+
         const completionWords = ['complete', 'done', 'finished', 'validated', 'verified', 'shipped', 'ready to ship', 'all tests pass'];
-        const designWords = ['should build', 'propose', 'suggest we', 'approach:', 'design:', 'architecture:', 'let\'s implement', 'i recommend'];
+        const designWords = ['should build', 'propose', 'suggest we', 'approach:', 'design:', 'architecture:', 'let\'s implement', 'i recommend', 'next feature', 'new feature', 'we should add'];
 
         let completionScore = 0;
         let designScore = 0;
 
-        for (const decision of keyDecisions) {
+        for (const decision of recentDecisions) {
             const lower = decision.toLowerCase();
             for (const w of completionWords) {
                 if (lower.includes(w)) completionScore++;
@@ -669,9 +673,11 @@ ${context.humanNotes || '(None)'}
             }
         }
 
-        // Need clear signal - at least 3 more of one type
-        if (completionScore > designScore + 2) return 'completion';
-        if (designScore > completionScore + 2) return 'design';
+        console.log(`   📊 Consensus detection: completion=${completionScore}, design=${designScore} (from ${recentDecisions.length} recent decisions)`);
+
+        // Need clear signal - at least 2 more of one type (lowered threshold for fewer decisions)
+        if (completionScore > designScore + 1) return 'completion';
+        if (designScore > completionScore + 1) return 'design';
         return 'unclear';
     }
 
@@ -1038,12 +1044,13 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 context.currentPhase = 'discussion';
                 context.discussionSummary.consensusReached = false;  // Reset for new topic
                 context.discussionSummary.consensusSignals = {};     // Reset signals for new discussion
+                context.discussionSummary.topic = '🆕 Pick Next Feature';  // Change topic to signal new discussion
                 context.nextAction = {
                     type: 'continue_discussion',
-                    reason: 'Task complete! Discuss what to build next.',
+                    reason: 'Previous task complete! PROPOSE a new feature to build.',
                     targetAgent: undefined
                 };
-                console.log(`\n🎉 TASK COMPLETE! Resetting for new discussion topic.\n`);
+                console.log(`\n🎉 TASK COMPLETE! Topic changed to "Pick Next Feature".\n`);
             } else {
                 // Design agreed OR unclear - proceed to implementation
                 context.currentPhase = 'code_review';

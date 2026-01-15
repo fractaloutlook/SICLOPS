@@ -150,9 +150,10 @@
 ## Development Features
 
 ### Testing Infrastructure
-- **Test Framework:** Vitest (configured)
+- **Test Framework:** Vitest
 - **Test Location:** `src/**/__tests__/*.test.ts`
-- **Run Command:** `npm test` or `npx vitest`
+- **Run Command:** `npm test` (runs vitest)
+- **Note:** No vitest.config.ts exists yet - tests use Vitest defaults
 - **Features:**
   - Fast execution with native ESM support
   - Jest-compatible API (describe, test, expect, beforeEach, etc.)
