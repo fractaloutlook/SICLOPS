@@ -24,12 +24,36 @@
 
 ## Current Cycle Notes
 
-**Task:** Code Validation Pipeline
-- Consensus approved design from team discussion (4/5 agents)
-- Need to check orchestrator-context.json for specific implementation details
-- System already has TypeScript validation (tsc --noEmit) in handleFileWrite/handleFileEdit
-- Likely need to: extract validation logic, add pre-commit hooks, create validation utility
-- IMPORTANT: Check what exact scope was agreed upon before implementing
+**Task:** Code Validation Pipeline - MVP SCOPE DEFINED
+
+**What EXISTS (already working):**
+- ✅ TypeScript compilation validation (tsc --noEmit)
+- ✅ Pattern matching validation for fileEdit
+- ✅ Temp file validation before committing
+- ✅ Failed attempt preservation
+
+**MVP SCOPE (what we're building NOW):**
+1. Input Validation Module (src/validation/input-validator.ts)
+   - Validate agent JSON responses match expected structure
+   - Sanitize file paths (prevent ../../../etc/passwd)
+   - Enforce size limits (max 100KB per file, max 5 ops per turn)
+
+2. Path Security
+   - Whitelist allowed directories: src/, tests/, docs/, notes/
+   - Block sensitive paths: .env, node_modules, .git
+   - Reject paths with .. traversal attempts
+
+3. Integration into Orchestrator
+   - Call validator before handleFileWrite/handleFileEdit
+   - Log validation failures
+   - Return clear errors to agents
+
+**Out of Scope (future work):**
+- Content scanning for secrets
+- JSON schema validation with ajv/zod
+- Pre-commit hooks
+- Audit logging
+- Rollback capability
 
 ---
 
