@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
 import { SharedMemoryCache } from './memory/shared-cache';
+import { validatePath, PathValidationError } from './validation/path-validator';
 import { generateVersion } from './utils/version-utils';
 import { detectTaskCompletion, shouldContinueNextCycle } from './utils/task-completion';
 import { displayProgressDashboard, extractProgressFromHistory, displayCycleSummary, extractKeyActions } from './utils/progress-dashboard';
@@ -247,6 +248,23 @@ ${context.humanNotes || '(None)'}
         console.log(`\n📝 ${agentName} requesting file write: ${fileWrite.filePath}`);
         console.log(`   Reason: ${fileWrite.reason}`);
 
+        // Validate path before proceeding
+        try {
+            const validation = validatePath(fileWrite.filePath);
+            if (!validation.isValid) {
+                console.error(`   ❌ Path validation failed: ${validation.error}`);
+                return { success: false, error: validation.error };
+            }
+            // Use normalized path for all operations
+            fileWrite.filePath = validation.normalizedPath;
+        } catch (error) {
+            if (error instanceof PathValidationError) {
+                console.error(`   ❌ Security violation: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+            throw error;
+        }
+
         const context = await this.loadContext();
         if (!context) {
             console.error('❌ No context loaded, cannot track code changes');
@@ -443,6 +461,23 @@ ${context.humanNotes || '(None)'}
         console.log(`\n📖 ${agentName} requesting file read: ${fileRead.filePath}`);
         console.log(`   Reason: ${fileRead.reason}`);
 
+        // Validate path before proceeding
+        try {
+            const validation = validatePath(fileRead.filePath);
+            if (!validation.isValid) {
+                console.error(`   ❌ Path validation failed: ${validation.error}`);
+                return { success: false, error: validation.error };
+            }
+            // Use normalized path for all operations
+            fileRead.filePath = validation.normalizedPath;
+        } catch (error) {
+            if (error instanceof PathValidationError) {
+                console.error(`   ❌ Security violation: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+            throw error;
+        }
+
         try {
             if (!await this.fileExists(fileRead.filePath)) {
                 console.warn(`   ⚠️  File does not exist: ${fileRead.filePath}`);
@@ -490,6 +525,23 @@ ${context.humanNotes || '(None)'}
         console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit.filePath}`);
         console.log(`   Reason: ${fileEdit.reason}`);
         console.log(`   Edits: ${fileEdit.edits.length} change(s)`);
+
+        // Validate path before proceeding
+        try {
+            const validation = validatePath(fileEdit.filePath);
+            if (!validation.isValid) {
+                console.error(`   ❌ Path validation failed: ${validation.error}`);
+                return { success: false, error: validation.error };
+            }
+            // Use normalized path for all operations
+            fileEdit.filePath = validation.normalizedPath;
+        } catch (error) {
+            if (error instanceof PathValidationError) {
+                console.error(`   ❌ Security violation: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+            throw error;
+        }
 
         const context = await this.loadContext();
         if (!context) {
