@@ -11,6 +11,8 @@ import { displayProgressDashboard, extractProgressFromHistory, displayCycleSumma
 import { autoCommitCycle, extractChangedFiles, generateCycleSummary } from './utils/git-auto-commit';
 import { summarizeContext, getContextHealth } from './utils/context-summarizer';
 import { runCycleTests } from './utils/simple-test';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface OrchestratorConfig {
     maxCycles: number;
@@ -264,7 +266,10 @@ ${context.humanNotes || '(None)'}
         try {
             // Step 1: Write to temporary location for validation
             const tempPath = `${fileWrite.filePath}.tmp`;
-            await FileUtils.ensureDir(fileWrite.filePath.substring(0, fileWrite.filePath.lastIndexOf('/')));
+            const lastSlash = fileWrite.filePath.lastIndexOf('/');
+            if (lastSlash > 0) {
+                await FileUtils.ensureDir(fileWrite.filePath.substring(0, lastSlash));
+            }
             await FileUtils.writeFile(tempPath, fileWrite.content);
 
             console.log(`   ✓ Wrote to temp file: ${tempPath}`);
@@ -395,6 +400,43 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Find files with similar names to help agents correct wrong paths.
+     * Searches recursively from project root for files with similar basenames.
+     */
+    private findSimilarFiles(requestedPath: string): string[] {
+        const basename = path.basename(requestedPath);
+        // Extract key words from filename (e.g., "shared-memory-cache.test.ts" -> ["shared", "memory", "cache", "test"])
+        const keywords = basename.toLowerCase().replace(/\.(ts|js|tsx|jsx|json|md)$/, '').split(/[-_\.]+/).filter(k => k.length > 2);
+
+        const suggestions: string[] = [];
+
+        const searchDir = (dir: string, depth: number = 0) => {
+            if (depth > 5 || suggestions.length >= 5) return; // Limit recursion
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist') continue;
+
+                    const fullPath = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        searchDir(fullPath, depth + 1);
+                    } else if (entry.isFile()) {
+                        const entryLower = entry.name.toLowerCase();
+                        // Check if any keyword matches
+                        const matchCount = keywords.filter(k => entryLower.includes(k)).length;
+                        if (matchCount >= Math.min(2, keywords.length)) {
+                            suggestions.push(fullPath);
+                        }
+                    }
+                }
+            } catch { /* ignore permission errors */ }
+        };
+
+        searchDir('.');
+        return suggestions.slice(0, 5);
+    }
+
+    /**
      * Handles file read requests from agents
      */
     private async handleFileRead(fileRead: FileReadRequest, agentName: string): Promise<{ success: boolean; content?: string; error?: string }> {
@@ -404,6 +446,18 @@ ${context.humanNotes || '(None)'}
         try {
             if (!await this.fileExists(fileRead.filePath)) {
                 console.warn(`   ⚠️  File does not exist: ${fileRead.filePath}`);
+
+                // Try to find similar files
+                const similar = this.findSimilarFiles(fileRead.filePath);
+                if (similar.length > 0) {
+                    const suggestions = similar.map(f => `     - ${f}`).join('\n');
+                    console.log(`   💡 Did you mean one of these?\n${suggestions}`);
+                    return {
+                        success: false,
+                        error: `File does not exist: ${fileRead.filePath}\n\nDid you mean one of these?\n${similar.join('\n')}`
+                    };
+                }
+
                 return { success: false, error: 'File does not exist' };
             }
 
@@ -589,6 +643,36 @@ ${context.humanNotes || '(None)'}
         }
 
         return false;
+    }
+
+    /**
+     * Determines if consensus is about "task completion" vs "design ready".
+     * - Task completion: agents saying work is done/complete/validated
+     * - Design ready: agents proposing/suggesting what to build
+     *
+     * Returns: 'completion' | 'design' | 'unclear'
+     */
+    private detectConsensusType(keyDecisions: string[]): 'completion' | 'design' | 'unclear' {
+        const completionWords = ['complete', 'done', 'finished', 'validated', 'verified', 'shipped', 'ready to ship', 'all tests pass'];
+        const designWords = ['should build', 'propose', 'suggest we', 'approach:', 'design:', 'architecture:', 'let\'s implement', 'i recommend'];
+
+        let completionScore = 0;
+        let designScore = 0;
+
+        for (const decision of keyDecisions) {
+            const lower = decision.toLowerCase();
+            for (const w of completionWords) {
+                if (lower.includes(w)) completionScore++;
+            }
+            for (const w of designWords) {
+                if (lower.includes(w)) designScore++;
+            }
+        }
+
+        // Need clear signal - at least 3 more of one type
+        if (completionScore > designScore + 2) return 'completion';
+        if (designScore > completionScore + 2) return 'design';
+        return 'unclear';
     }
 
     /**
@@ -908,10 +992,12 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             };
 
             // Check if consensus was reached (based on accumulated signals)
-            const totalAgreeCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'agree').length;
-            if (totalAgreeCount >= 4) {
+            // Use hasConsensus() to include soft consensus (agree + building combinations)
+            if (this.hasConsensus(context)) {
                 context.discussionSummary.consensusReached = true;
-                console.log(`\n✅ CONSENSUS REACHED: ${totalAgreeCount}/5 agents agree!\n`);
+                const agreeCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'agree').length;
+                const buildingCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'building').length;
+                console.log(`\n✅ CONSENSUS REACHED: ${agreeCount} agree + ${buildingCount} building!\n`);
             }
         }
 
@@ -928,6 +1014,14 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 }
                 console.log(`\n📋 Extracted ${newDecisions.length} key decision(s) from discussion`);
             }
+
+            // Keep only last 10 decisions to prevent stale context bloat
+            const MAX_KEY_DECISIONS = 10;
+            if (context.discussionSummary.keyDecisions.length > MAX_KEY_DECISIONS) {
+                const removed = context.discussionSummary.keyDecisions.length - MAX_KEY_DECISIONS;
+                context.discussionSummary.keyDecisions = context.discussionSummary.keyDecisions.slice(-MAX_KEY_DECISIONS);
+                console.log(`   📦 Trimmed ${removed} old decision(s), keeping last ${MAX_KEY_DECISIONS}`);
+            }
         }
 
         // Update phase and nextAction based on consensus state
@@ -935,13 +1029,30 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         const totalAgreeCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'agree').length;
 
         if (context.discussionSummary.consensusReached) {
-            // Consensus reached - prepare for implementation
-            context.currentPhase = 'code_review';
-            context.nextAction = {
-                type: 'apply_changes',
-                reason: `Consensus reached (${totalAgreeCount}/5 agree) - ready to implement`,
-                targetAgent: undefined
-            };
+            // Consensus reached - but is it "task complete" or "design ready"?
+            const consensusType = this.detectConsensusType(context.discussionSummary.keyDecisions);
+            console.log(`   🔍 Consensus type: ${consensusType}`);
+
+            if (consensusType === 'completion') {
+                // Task is DONE - stay in discussion to figure out what's NEXT
+                context.currentPhase = 'discussion';
+                context.discussionSummary.consensusReached = false;  // Reset for new topic
+                context.discussionSummary.consensusSignals = {};     // Reset signals for new discussion
+                context.nextAction = {
+                    type: 'continue_discussion',
+                    reason: 'Task complete! Discuss what to build next.',
+                    targetAgent: undefined
+                };
+                console.log(`\n🎉 TASK COMPLETE! Resetting for new discussion topic.\n`);
+            } else {
+                // Design agreed OR unclear - proceed to implementation
+                context.currentPhase = 'code_review';
+                context.nextAction = {
+                    type: 'apply_changes',
+                    reason: `Consensus reached (${totalAgreeCount}/5 agree) - ready to implement`,
+                    targetAgent: undefined
+                };
+            }
         } else {
             // Still building toward consensus
             context.currentPhase = 'discussion';
