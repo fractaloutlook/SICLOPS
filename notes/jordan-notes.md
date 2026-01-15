@@ -10,6 +10,18 @@
 
 ---
 
+## 🎯 Status Tracker (UPDATE EVERY TURN!)
+
+| Field | Value |
+|-------|-------|
+| **lastCycleDid** | *(not yet set)* |
+| **whatIWasDoing** | *(not yet set)* |
+| **currentBlockers** | *(none)* |
+| **nextSteps** | *(not yet set)* |
+| **lastUpdated** | *(not yet set)* |
+
+---
+
 ## Current Cycle Notes
 
 ### SharedMemoryCache Integration (2026-01-07)

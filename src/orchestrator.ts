@@ -29,8 +29,13 @@ const SYSTEM_CAPABILITIES = `
 **File Operations:**
 - fileRead: Read any file (shown with line numbers)
 - fileEdit: Pattern-match find/replace editing
-- fileWrite: Create new files
+- fileWrite: Create new files (test files auto-run!)
 - All edits auto-validated with TypeScript
+
+**Workflow:**
+- Normal: Morgan → Sam → Jordan → Alex → Pierre
+- Self-pass: Up to 3 times for multi-step work
+- Return for fix: Set returnForFix=true to pass backwards when you find bugs
 
 **Memory:**
 - Agent notebooks: notes/{name}-notes.md (persists across runs)
@@ -54,6 +59,7 @@ export class Orchestrator {
     private cycleCount: number = 0;
     private cycleCosts: Array<{cycle: string, total: number, logPath: string}> = [];
     private sharedCache: SharedMemoryCache;
+    private currentPhase: 'discussion' | 'implementation' = 'discussion';
 
     constructor(private config: OrchestratorConfig) {
         this.anthropicClient = new Anthropic({ apiKey: API_KEYS.anthropic });
@@ -79,6 +85,16 @@ export class Orchestrator {
         }
     }
 
+    /**
+     * Determine if we should use consensus mode based on current phase.
+     * - Discussion phase: Use consensus (debate, vote)
+     * - Implementation phase: Use sequential workflow
+     */
+    private shouldUseConsensus(): boolean {
+        // Use consensus for discussion phase, sequential for implementation
+        return this.currentPhase === 'discussion';
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // CONTEXT MANAGEMENT (Phase 1: State Persistence)
     // ═══════════════════════════════════════════════════════════════
@@ -95,8 +111,13 @@ export class Orchestrator {
             console.log(`📖 Loaded context from run #${context.runNumber}`);
 
             // Load cached decisions into SharedMemoryCache
-            if (context.discussionSummary?.keyDecisions) {
+            if (context.discussionSummary?.keyDecisions && context.discussionSummary.keyDecisions.length > 0) {
+                console.log(`\n📋 Loading ${context.discussionSummary.keyDecisions.length} previous decisions:`);
                 for (const decision of context.discussionSummary.keyDecisions) {
+                    // Show first 120 chars of each decision for human readability
+                    const preview = decision.length > 120 ? decision.substring(0, 117) + '...' : decision;
+                    console.log(`   ${preview}`);
+
                     this.sharedCache.store(
                         `decision_${Date.now()}_${Math.random()}`,
                         decision,
@@ -104,7 +125,7 @@ export class Orchestrator {
                         'Loaded from previous run context'
                     );
                 }
-                console.log(`   💾 Loaded ${context.discussionSummary.keyDecisions.length} cached decisions`);
+                console.log('');
             }
 
             return context;
@@ -274,6 +295,11 @@ ${context.humanNotes || '(None)'}
 
                 console.log(`   📊 Status: ${codeChange.status}\n`);
 
+                // Auto-run tests if this is a test file
+                if (fileWrite.filePath.startsWith('tests/') && fileWrite.filePath.endsWith('.ts')) {
+                    await this.runTestFile(fileWrite.filePath, agentName);
+                }
+
                 return { success: true };
 
             } catch (compileError: any) {
@@ -316,6 +342,43 @@ ${context.humanNotes || '(None)'}
 
             return { success: false, error: error.message };
         }
+    }
+
+    /**
+     * Auto-run a test file and report results.
+     * This happens automatically when test files are written.
+     */
+    private async runTestFile(testPath: string, agentName: string): Promise<void> {
+        console.log(`\n🧪 ${agentName} wrote a test file - running automatically...`);
+        console.log(`   Test: ${testPath}`);
+
+        try {
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+
+            const result = await execAsync(`npx ts-node ${testPath}`, {
+                timeout: 60000,  // 60 second timeout for tests
+                maxBuffer: 1024 * 1024  // 1MB buffer for output
+            });
+
+            // Test passed
+            console.log(`   ✅ Test passed!`);
+            if (result.stdout) {
+                console.log(`\n   Output:\n${result.stdout.split('\n').map(l => '   ' + l).join('\n')}`);
+            }
+
+        } catch (error: any) {
+            // Test failed
+            console.error(`   ❌ Test failed!`);
+            const output = error.stdout || error.stderr || error.message;
+            console.error(`\n   Error:\n${output.substring(0, 1000).split('\n').map((l: string) => '   ' + l).join('\n')}`);
+
+            // Note: We don't throw - just report the failure
+            // Next agent will see the test failure in history
+        }
+
+        console.log(`\n   ⚠️  Next agent will see test results and can fix if needed.\n`);
     }
 
     /**
@@ -508,13 +571,20 @@ ${context.humanNotes || '(None)'}
     private hasConsensus(context: OrchestratorContext): boolean {
         const signals = context.discussionSummary.consensusSignals;
         const agreeCount = Object.values(signals).filter(s => s === 'agree').length;
+        const buildingCount = Object.values(signals).filter(s => s === 'building').length;
+        const disagreeCount = Object.values(signals).filter(s => s === 'disagree').length;
 
-        // 4 out of 5 is consensus
+        // Strong consensus: 4+ explicit agrees
         if (agreeCount >= 4) return true;
 
-        // Alternative: If we have 3 agrees and 1 "building" (not blocking), consider it effective consensus
-        const buildingCount = Object.values(signals).filter(s => s === 'building').length;
+        // Moderate consensus: 3 agrees + 1 building (not blocking)
         if (agreeCount >= 3 && buildingCount >= 1 && signals && Object.keys(signals).length >= 4) {
+            return true;
+        }
+
+        // Soft consensus: 1-2 agrees + 3+ building + no more than 1 disagree
+        // "Building" means agents are working toward the same solution
+        if (agreeCount >= 1 && (agreeCount + buildingCount) >= 4 && disagreeCount <= 1) {
             return true;
         }
 
@@ -573,6 +643,53 @@ ${context.humanNotes || '(None)'}
     }
 
     /**
+     * Extracts the agreed-upon feature from discussion key decisions.
+     * Looks for common themes or explicit feature mentions in agent agreements.
+     */
+    private extractAgreedFeature(context: OrchestratorContext): string {
+        const decisions = context.discussionSummary.keyDecisions;
+
+        if (decisions.length === 0) {
+            return 'Agreed Feature';
+        }
+
+        // Common feature keywords to look for
+        const keywords = [
+            'SharedMemoryCache', 'shared memory', 'cache',
+            'Jest test', 'testing', 'test',
+            'error recovery', 'error handling',
+            'validation', 'pipeline',
+            'handoff', 'protocol',
+            'serialization', 'state'
+        ];
+
+        // Count mentions of each keyword category
+        const featureCounts: Record<string, number> = {};
+        for (const decision of decisions) {
+            const lower = decision.toLowerCase();
+            if (lower.includes('sharedmemorycache') || lower.includes('shared memory') || lower.includes('cache')) {
+                featureCounts['SharedMemoryCache'] = (featureCounts['SharedMemoryCache'] || 0) + 1;
+            }
+            if (lower.includes('jest') || lower.includes('test')) {
+                featureCounts['Testing Infrastructure'] = (featureCounts['Testing Infrastructure'] || 0) + 1;
+            }
+            if (lower.includes('error') && (lower.includes('recovery') || lower.includes('handling'))) {
+                featureCounts['Error Recovery System'] = (featureCounts['Error Recovery System'] || 0) + 1;
+            }
+            if (lower.includes('validation') || lower.includes('pipeline')) {
+                featureCounts['Code Validation Pipeline'] = (featureCounts['Code Validation Pipeline'] || 0) + 1;
+            }
+            if (lower.includes('handoff') || lower.includes('protocol')) {
+                featureCounts['Agent Handoff Protocol'] = (featureCounts['Agent Handoff Protocol'] || 0) + 1;
+            }
+        }
+
+        // Return the most mentioned feature, or a generic name
+        const sortedFeatures = Object.entries(featureCounts).sort((a, b) => b[1] - a[1]);
+        return sortedFeatures.length > 0 ? sortedFeatures[0][0] : 'Next Feature';
+    }
+
+    /**
      * Generates implementation-focused prompt with design decisions from discussion.
      */
     private generateImplementationPrompt(context: OrchestratorContext): string {
@@ -580,58 +697,30 @@ ${context.humanNotes || '(None)'}
             ? context.discussionSummary.keyDecisions.map((d, i) => `${i + 1}. ${d}`).join('\n')
             : 'See discussion summary below.';
 
-        return `IMPLEMENTATION TASK: Shared Memory Cache
+        // Extract the agreed-upon feature from key decisions
+        const agreedFeature = this.extractAgreedFeature(context);
+
+        return `IMPLEMENTATION TASK: ${agreedFeature}
 
 You are part of a self-improving AI team building a virtual assistant framework.
 
 CONSENSUS REACHED ✅
-Your team has agreed on the design for SharedMemoryCache. Now it's time to implement it!
+Your team has agreed on what to build. Now it's time to implement it!
 
 APPROVED DESIGN:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**Feature**: Shared Memory Cache (Three-Bucket LRU)
+${decisions}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Purpose**: Help agents share context across runs, token-aware caching, prevent memory overflow
-
-**Core Design**:
-- Three classification buckets: transient / decision / sensitive
-- LRU (Least Recently Used) eviction within each bucket
-- TTL (Time To Live) per bucket type
-- Optional reason field for observability (write-time documentation only)
-- 50k token hard cap total
-- Sensitive bucket gets 10% of cache (~5k tokens), never auto-evicts
-- Aggressive eviction logging from day one
-
-**Technical Details**:
-- File location: src/memory/shared-cache.ts
-- Interface: SharedMemoryCache class
-- Methods needed:
-  - store(key, value, bucket, reason?)
-  - retrieve(key)
-  - evict(key)
-  - getStats()
-- Instrumentation: log every write, access, eviction event
-
-**Implementation Timeline**:
-- Core LRU logic: 2-3 days
-- Eviction logging: included from start
-- Integration: ready for use in next discussion cycle
-
-**Key Constraints** (DO NOT violate):
-1. Reason field is documentation-only, NEVER use for eviction logic
-2. If iteration needed, tune heuristics first (TTLs, access weights)
-3. Don't over-engineer - this is MVP, ship fast
-4. Must be usable by agents in their NEXT discussion
-
-**Your Role**:
-${AGENT_CONFIGS.Morgan ? '**Morgan**: You own the core implementation. Build working code.' : ''}
-${AGENT_CONFIGS.Sam ? '**Sam**: Review for safety, ensure logging is observable.' : ''}
-${AGENT_CONFIGS.Jordan ? '**Jordan**: Verify guardrails (reason field read-only, no policy matrix creep).' : ''}
-${AGENT_CONFIGS.Alex ? '**Alex**: Check DX - will agents actually USE this easily?' : ''}
-${AGENT_CONFIGS.Pierre ? '**Pierre**: Keep scope tight, ensure we ship something usable.' : ''}
+**Your Role** (sequential workflow):
+${AGENT_CONFIGS.Morgan ? '**Morgan**: Lead the implementation. Write working code.' : ''}
+${AGENT_CONFIGS.Sam ? '**Sam**: Review for safety and test coverage.' : ''}
+${AGENT_CONFIGS.Jordan ? '**Jordan**: Verify architecture and best practices.' : ''}
+${AGENT_CONFIGS.Alex ? '**Alex**: Check usability and developer experience.' : ''}
+${AGENT_CONFIGS.Pierre ? '**Pierre**: Keep scope tight, ensure we ship something working.' : ''}
 
 IMMEDIATE GOAL:
-Write the TypeScript code for SharedMemoryCache. Make it:
+Implement the agreed-upon feature. Make it:
 - ✅ TypeScript-clean (will be compiled before use)
 - ✅ Documented (inline comments for key decisions)
 - ✅ Usable in next cycle (simple API)
@@ -810,14 +899,19 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         // Calculate total cost
         const totalCost = this.cycleCosts.reduce((sum, c) => sum + c.total, 0);
 
-        // Update consensus signals if provided
+        // Update consensus signals if provided - ACCUMULATE, don't replace
         if (consensusSignals && Object.keys(consensusSignals).length > 0) {
-            context.discussionSummary.consensusSignals = consensusSignals;
+            // Merge new signals with existing ones (new signals override old ones for same agent)
+            context.discussionSummary.consensusSignals = {
+                ...context.discussionSummary.consensusSignals,
+                ...consensusSignals
+            };
 
-            // Check if consensus was reached
-            const agreeCount = Object.values(consensusSignals).filter(s => s === 'agree').length;
-            if (agreeCount >= 4) {
+            // Check if consensus was reached (based on accumulated signals)
+            const totalAgreeCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'agree').length;
+            if (totalAgreeCount >= 4) {
                 context.discussionSummary.consensusReached = true;
+                console.log(`\n✅ CONSENSUS REACHED: ${totalAgreeCount}/5 agents agree!\n`);
             }
         }
 
@@ -837,28 +931,19 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         }
 
         // Update phase and nextAction based on consensus state
-        const currentAgreeCount = Object.values(consensusSignals || {}).filter(s => s === 'agree').length;
+        // Use accumulated signals, not just this cycle's signals
+        const totalAgreeCount = Object.values(context.discussionSummary.consensusSignals).filter(s => s === 'agree').length;
 
-        if (context.discussionSummary.consensusReached && currentAgreeCount >= 4) {
-            // Maintain consensus - stay in implementation mode
+        if (context.discussionSummary.consensusReached) {
+            // Consensus reached - prepare for implementation
             context.currentPhase = 'code_review';
             context.nextAction = {
                 type: 'apply_changes',
-                reason: 'Consensus reached - implement agreed design',
-                targetAgent: undefined
-            };
-        } else if (context.discussionSummary.consensusReached && currentAgreeCount < 4) {
-            // Lost consensus - back to discussion
-            console.log(`\n⚠️  Consensus lost (${currentAgreeCount}/5 agree). Returning to discussion phase.\n`);
-            context.currentPhase = 'discussion';
-            context.discussionSummary.consensusReached = false;
-            context.nextAction = {
-                type: 'continue_discussion',
-                reason: `Consensus lost - only ${currentAgreeCount} agents agree now`,
+                reason: `Consensus reached (${totalAgreeCount}/5 agree) - ready to implement`,
                 targetAgent: undefined
             };
         } else {
-            // Never had consensus or still building toward it
+            // Still building toward consensus
             context.currentPhase = 'discussion';
             const disagreeCount = Object.values(consensusSignals || {}).filter(s => s === 'disagree').length;
 
@@ -868,10 +953,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     reason: `${disagreeCount} agents disagree - need more alignment`,
                     targetAgent: undefined
                 };
-            } else if (currentAgreeCount >= 2) {
+            } else if (totalAgreeCount >= 2) {
                 context.nextAction = {
                     type: 'continue_discussion',
-                    reason: `Making progress (${currentAgreeCount} agree) - close to consensus`,
+                    reason: `Making progress (${totalAgreeCount} agree) - close to consensus`,
                     targetAgent: undefined
                 };
             } else {
@@ -927,11 +1012,38 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         let projectFileContent: string;
         let projectStage: string;
 
+        // Check if SharedMemoryCache is already implemented
+        let sharedCacheExists = false;
+        let sharedCacheTestExists = false;
+        try {
+            await FileUtils.readFile('src/memory/shared-cache.ts');
+            sharedCacheExists = true;
+        } catch (e) {
+            // File doesn't exist
+        }
+        try {
+            await FileUtils.readFile('src/memory/__tests__/shared-cache.test.ts');
+            sharedCacheTestExists = true;
+        } catch (e) {
+            try {
+                await FileUtils.readFile('tests/test-shared-cache.ts');
+                sharedCacheTestExists = true;
+            } catch (e2) {
+                // Neither test file exists
+            }
+        }
+
         if (context && this.hasConsensus(context)) {
             // Implementation mode - consensus reached, time to code!
             projectFileContent = this.generateImplementationPrompt(context);
             projectStage = 'implementation';
-            console.log(`\n✅ Consensus detected! Switching to IMPLEMENTATION mode.\n`);
+            this.currentPhase = 'implementation';  // Switch to sequential mode
+            console.log(`\n✅ Consensus detected! Switching to IMPLEMENTATION mode (sequential workflow).\n`);
+
+            // Reset consensus now so next cycle starts fresh discussion
+            context.discussionSummary.consensusReached = false;
+            context.discussionSummary.consensusSignals = {};
+            // Keep keyDecisions for the implementation phase to use
 
             // Update context to reflect phase change
             await this.updateContext({
@@ -943,57 +1055,64 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 }
             });
         } else {
+            this.currentPhase = 'discussion';  // Ensure we're in discussion mode
             // Discussion mode - still deciding what to build
-            projectFileContent = `TEAM DISCUSSION: Pick ONE Feature to Implement
+            const completedFeatures = [];
+            if (sharedCacheExists && sharedCacheTestExists) {
+                completedFeatures.push('✅ SharedMemoryCache - three-bucket LRU cache with tests');
+            }
+
+            projectFileContent = `TEAM DISCUSSION: ${completedFeatures.length > 0 ? 'What to Build NEXT' : 'Pick ONE Feature to Implement'}
 
 You are part of a self-improving AI team building a virtual assistant framework.
 
 CURRENT SYSTEM:
 - Built in TypeScript with Claude/OpenAI API
 - Multi-agent orchestration with cost tracking
-- Context persistence across runs (NEW!)
+- Context persistence across runs
 - Consensus-based decision making
+- Agent notebooks for cross-run memory
 
-NEW CAPABILITY:
-The orchestrator now saves your progress between runs! Check docs/ORCHESTRATOR_GUIDE.md for details.
-Your discussions continue where they left off. No more starting from scratch!
-
+${completedFeatures.length > 0 ? `COMPLETED FEATURES:\n${completedFeatures.map(f => `- ${f}`).join('\n')}\n` : ''}
 YOUR HUMAN USER:
 - Values shipping features over endless discussion
 - Wants you to work autonomously (less human intervention)
 - Prefers robust, simple solutions over over-engineered ones
 
 YOUR TASK:
-Pick ONE feature to implement fully. Choose something that helps you:
+Pick ONE feature to ${completedFeatures.length > 0 ? 'implement NEXT' : 'implement fully'}. Choose something that helps you:
 1. Function longer without human intervention
 2. Maintain context across restarts
 3. Coordinate better as a team
 4. Recover from errors gracefully
 
-SUGGESTED FIRST FEATURE:
+${!sharedCacheExists || !sharedCacheTestExists ? `SUGGESTED FIRST FEATURE:
 Based on previous discussions, consider: **Shared Memory Cache**
 - Helps agents share context across runs
 - Token-aware caching (prevent memory overflow)
 - Priority-based pruning (keep important stuff)
 - Security classifications (protect sensitive data)
 
-OTHER OPTIONS (pick ONE):
+OTHER OPTIONS (pick ONE):` : `SUGGESTED NEXT FEATURES (pick ONE):`}
 - Enhanced state serialization
 - Agent handoff protocol (prevent stepping on toes)
 - Code validation pipeline (catch errors before applying)
 - Error recovery system (retry with backoff)
+- Fix/improve existing features (e.g., make SharedMemoryCache tests actually run)
 
 DISCUSSION GOALS:
-1. ${this.config.requireConsensus !== false ? 'Debate which ONE feature to build first' : 'Collaborate to pick ONE feature to build'}
-2. ${this.config.requireConsensus !== false ? 'Reach consensus (4/5 agents agree)' : 'Each agent contributes their perspective in sequence'}
+1. ${this.shouldUseConsensus() ? 'Debate which ONE feature to build first' : 'Collaborate to pick ONE feature to build'}
+2. ${this.shouldUseConsensus() ? 'Reach consensus (4/5 agents agree)' : 'Each agent contributes their perspective in sequence'}
 3. Define SPECIFIC implementation details
 4. Be ready to write actual working code
 
 IMPORTANT:
 - Focus on ONE feature only
 - Don't over-engineer (Jordan: MVP mode!)
-- Be direct, challenge ideas, ${this.config.requireConsensus !== false ? 'disagree when needed' : 'build on each other\'s ideas'}
-${this.config.requireConsensus !== false ? '- Signal consensus honestly: agree/building/disagree' : '- Work sequentially: each agent reviews and passes to next'}
+- Be direct, challenge ideas, ${this.shouldUseConsensus() ? 'disagree when needed' : 'build on each other\'s ideas'}
+${this.shouldUseConsensus() ? `- Signal consensus honestly: agree/building/disagree
+- Choose who goes next strategically (don't waste turns on agents who already agree)
+- If consensus is clear and remaining agents are out of turns, pass to "Orchestrator" to end round early` : '- Work sequentially: each agent reviews and passes to next'}
 
 ${SYSTEM_CAPABILITIES}
 ${context?.humanNotes ? `\n\n🗣️ MESSAGE FROM YOUR HUMAN USER:\n${context.humanNotes}\n` : ''}
@@ -1025,7 +1144,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
 
         let currentAgent: Agent | null = null;
 
-        if (this.config.requireConsensus === false) {
+        if (!this.shouldUseConsensus()) {
             // Use fixed workflow order - start with first agent in order
             for (const agentName of AGENT_WORKFLOW_ORDER) {
                 const agent = this.agents.get(agentName);
@@ -1063,7 +1182,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             const totalAgents = this.agents.size;
 
             // Check for consensus (only if requireConsensus is enabled)
-            if (this.config.requireConsensus !== false) {
+            if (this.shouldUseConsensus()) {
                 const consensusThreshold = Math.ceil(totalAgents * 0.8); // 80% = 4 out of 5
 
                 if (agreeCount >= consensusThreshold) {
@@ -1078,17 +1197,47 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 }
             }
 
-            const availableTargets = Array.from(this.agents.values())
+            // Get available targets
+            let availableTargets = Array.from(this.agents.values())
                 .filter(a => a.canProcess())
                 .map(a => a.getName());
 
-            if (availableTargets.length === 0) {
+            // In consensus mode, add "Orchestrator" as option to end round early
+            if (this.shouldUseConsensus()) {
+                availableTargets.push('Orchestrator');
+            }
+
+            // Build turn availability info for agents
+            const turnInfo: string[] = [];
+            for (const [name, agent] of this.agents.entries()) {
+                const state = agent.getState();
+                const remaining = 3 - state.timesProcessed;  // Assuming max 3 turns
+                const status = remaining > 0 ? `${remaining}/3 turns left` : 'exhausted (next round)';
+                turnInfo.push(`  - ${name}: ${status}`);
+            }
+            const turnInfoStr = this.shouldUseConsensus()
+                ? `\nTURN AVAILABILITY:\n${turnInfo.join('\n')}\n${availableTargets.includes('Orchestrator') ? '  - Orchestrator: Pass here to end round early\n' : ''}`
+                : '';
+
+            // Inject turn info into project file for agents to see
+            if (this.shouldUseConsensus() && projectFile.history.length > 0) {
+                // Add as a system note in history
+                projectFile.history.push({
+                    agent: 'System',
+                    timestamp: new Date().toISOString(),
+                    action: 'turn_status',
+                    notes: turnInfoStr,
+                    changes: { description: 'Turn availability update', location: 'system' }
+                });
+            }
+
+            if (availableTargets.length === 0 || (availableTargets.length === 1 && availableTargets[0] === 'Orchestrator')) {
                 await this.logCycle(cyclePath, 'Cycle complete - no available targets', {
                     finalState: projectFile,
                     consensusSignals,
                     finalAgreeCount: agreeCount
                 });
-                const consensusMsg = this.config.requireConsensus !== false
+                const consensusMsg = this.shouldUseConsensus()
                     ? `Final consensus: ${agreeCount}/${totalAgents} agents agree.`
                     : 'All agents completed their turns.';
                 console.log(`\n${consensusMsg}`);
@@ -1097,6 +1246,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
 
             // Inner loop: Keep calling same agent while they request file reads
             // This allows agents to read multiple files and then act on them in ONE turn
+            if (!currentAgent) {
+                console.error('❌ Current agent is null before processFile');
+                break;
+            }
             let result = await currentAgent.processFile(projectFile, availableTargets);
             let fileReadIterations = 0;
             const MAX_FILE_READS_PER_TURN = 5; // Prevent infinite loops
@@ -1111,6 +1264,12 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     const lineCount = readResult.content.split('\n').length;
                     // Display content WITH LINE NUMBERS so agents can reference specific locations
                     const numberedContent = this.formatWithLineNumbers(readResult.content);
+
+                    // Console shows just the summary to reduce clutter
+                    console.log(`\n📖 File read: ${result.fileRead.filePath} (${lineCount} lines)\n`);
+
+                    // Add full content to history (agents need it for editing)
+                    // TODO: Remove file content from history after requesting agent processes it
                     projectFile.history.push({
                         agent: 'Orchestrator',
                         timestamp: new Date().toISOString(),
@@ -1258,9 +1417,27 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             // Get next agent (use fixed workflow order if consensus disabled)
             let nextAgent: Agent | null = null;
 
-            if (this.config.requireConsensus === false) {
+            // Safety check
+            if (!currentAgent) {
+                console.error('❌ Current agent is null, breaking loop');
+                break;
+            }
+
+            if (!this.shouldUseConsensus()) {
+                // Check if agent is requesting to return backwards for fix
+                if (result.returnForFix) {
+                    console.log(`🔙 ${currentAgent.getName()} requesting return for fix → ${result.targetAgent}`);
+                    nextAgent = this.agents.get(result.targetAgent) || null;
+                    if (!nextAgent) {
+                        console.warn(`⚠️  Target agent ${result.targetAgent} not found, continuing workflow normally`);
+                        nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                    } else if (!nextAgent.canProcess()) {
+                        console.warn(`⚠️  Target agent ${result.targetAgent} cannot process, continuing workflow normally`);
+                        nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                    }
+                }
                 // Check if agent is self-passing for multi-step work
-                if (result.targetAgent === currentAgent.getName()) {
+                else if (result.targetAgent === currentAgent.getName()) {
                     nextAgent = currentAgent;
                     console.log(`🔄 ${currentAgent.getName()} self-passing for multi-step work`);
                 } else {
@@ -1272,7 +1449,24 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     }
                 }
             } else {
-                // Agent chooses who to pass to
+                // Consensus mode - agent chooses who to pass to
+
+                // Check if agent passed to Orchestrator to end round early
+                if (result.targetAgent === 'Orchestrator') {
+                    await this.logCycle(cyclePath, 'Round ended early by agent request', {
+                        requestingAgent: currentAgent.getName(),
+                        reasoning: result.reasoning,
+                        finalState: projectFile,
+                        consensusSignals,
+                        agreeCount
+                    });
+                    console.log(`\n🎯 ${currentAgent.getName()} passed to Orchestrator - ending round early.`);
+                    console.log(`   Reasoning: ${result.reasoning}`);
+                    console.log(`   Current consensus: ${agreeCount}/${totalAgents} agents agree.\n`);
+                    break;
+                }
+
+                // Agent chose a specific team member
                 nextAgent = this.agents.get(result.targetAgent) || null;
                 if (!nextAgent) {
                     await this.logCycle(cyclePath, 'Invalid target agent selected', {
@@ -1280,24 +1474,28 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         availableAgents: Array.from(this.agents.keys()),
                         availableTargets
                     });
-                    console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}". Picking random available agent.`);
-                    const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
-                    if (!fallbackAgent) break;
-                    currentAgent = fallbackAgent;
-                    continue;
+                    console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}".`);
+                    console.log(`   Available options: ${availableTargets.filter(a => a !== 'Orchestrator').join(', ')}`);
+                    console.log(`   Ending round to avoid confusion.`);
+                    break;
                 }
 
                 // Check if the target agent can still process
                 if (!nextAgent.canProcess()) {
-                    console.log(`⚠️  ${result.targetAgent} has hit processing limit. Picking different agent.`);
-                    const fallbackAgent = this.getRandomAvailableAgent(availableTargets);
-                    if (!fallbackAgent) break;
-                    currentAgent = fallbackAgent;
-                    continue;
+                    console.log(`⚠️  ${currentAgent.getName()} selected ${result.targetAgent}, but they're out of turns.`);
+                    console.log(`   ${result.targetAgent} has exhausted their turns this round.`);
+                    console.log(`   Available options: ${availableTargets.filter(a => a !== 'Orchestrator').join(', ')}`);
+                    console.log(`   Ending round to avoid confusion.`);
+                    break;
                 }
             }
 
             currentAgent = nextAgent;
+
+            if (!currentAgent) {
+                console.error('❌ Next agent became null unexpectedly');
+                break;
+            }
 
             await this.logCycle(cyclePath, 'Processing step', {
                 agent: currentAgent.getName(),

@@ -10,21 +10,15 @@
 
 ---
 
-## 🎯 Status Tracker (UPDATE EVERY TURN!)
-
-| Field | Value |
-|-------|-------|
-| **lastCycleDid** | *(not yet set)* |
-| **whatIWasDoing** | *(not yet set)* |
-| **currentBlockers** | *(none)* |
-| **nextSteps** | *(not yet set)* |
-| **lastUpdated** | *(not yet set)* |
-
----
-
 ## Current Cycle Notes
 
-*No notes yet - starting fresh*
+**Validation Pipeline Documentation (Pending Implementation)**
+- Waiting for Morgan to implement code-validator.ts and typescript-validator.ts
+- Once implemented, will add:
+  - JSDoc comments to all validation functions
+  - Update docs/SYSTEM_CAPABILITIES.md with validation workflow section
+  - Create usage examples showing how agents trigger validation
+  - Document validation error formats for agents
 
 ---
 

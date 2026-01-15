@@ -54,6 +54,7 @@ export interface ProcessResult {
     notes?: string;  // Additional context from agent
     consensus?: 'agree' | 'building' | 'disagree';  // Consensus signal
     conversation?: ConversationResponse;  // For conversation mode
+    returnForFix?: boolean;  // Signal to pass backwards for immediate bug fix (use sparingly!)
     cost: number;
     tokens: {
         input: number;

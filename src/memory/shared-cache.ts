@@ -1,421 +1,326 @@
-import { EventEmitter } from 'events';
-
 /**
- * SharedMemoryCache: Three-bucket LRU cache for agent context sharing
- *
- * PURPOSE:
- * Allows agents to share context and decisions across multiple runs, preventing
- * re-discussion of settled topics and maintaining institutional knowledge.
- *
- * ARCHITECTURE:
- * - Three priority buckets with different TTLs and eviction policies
- * - Token-aware capacity management (prevents memory overflow)
- * - LRU (Least Recently Used) eviction when capacity exceeded
- * - Comprehensive event logging for observability
- *
- * BUCKETS:
- * - transient: Temporary context for current task (TTL: 1 hour, auto-evict)
- *   Use for: Work-in-progress notes, temporary findings
- *
- * - decision: Team consensus outcomes (TTL: 24 hours, auto-evict)
- *   Use for: Voted decisions, API designs, architecture choices
- *
- * - sensitive: Long-term critical data (TTL: 7 days, manual-evict only)
- *   Use for: Security findings, user preferences, credentials metadata
- *   Quota: 5000 tokens (10% of total), never auto-evicted
- *
- * CAPACITY:
- * - Hard cap: 50,000 tokens total
- * - When full, evicts LRU entries from transient/decision (never sensitive)
- * - Throws error if sensitive bucket full or total capacity exceeded
- *
- * USAGE EXAMPLE:
- *
- * // After team reaches consensus on REST API design
- * cache.store(
- *   'rest_api_design_v2',
- *   JSON.stringify({ endpoints: [...], auth: 'JWT' }),
- *   'decision',
- *   'Team consensus from run #15: Chose REST over GraphQL'
- * );
- *
- * // In next run, check if already decided
- * const cached = cache.retrieve('rest_api_design_v2');
- * if (cached) {
- *   const design = JSON.parse(cached as string);
- *   console.log('Already decided:', design);
- * } else {
- *   // Need to discuss and decide
- * }
- *
- * INTEGRATION STATUS:
- * - Currently instantiated by Orchestrator (orchestrator.ts:37)
- * - Loaded with previous decisions on context load (orchestrator.ts:73-83)
- * - Stores new decisions at cycle end (orchestrator.ts:817-828)
- * - NOT YET exposed to agents directly (no agent API for store/retrieve)
- *
- * FUTURE ENHANCEMENTS:
- * - Add agent-facing API to store/retrieve during turns
- * - Persistence to disk across process restarts
- * - Query/search capabilities across cached entries
- * - Export to JSON for human inspection
+ * SharedMemoryCache - Three-Bucket LRU Cache with Token Awareness
+ * 
+ * Purpose: Help agents share context across runs with intelligent eviction.
+ * Design: Three classification buckets (transient/decision/sensitive) with LRU eviction.
+ * Constraints:
+ * - 50k token hard cap total
+ * - Sensitive bucket: 10% (~5k tokens), never auto-evicts
+ * - Reason field: documentation-only, NEVER used for eviction logic
+ * - Aggressive logging from day one
  */
 
-type CacheBucket = 'transient' | 'decision' | 'sensitive';
+export type BucketType = 'transient' | 'decision' | 'sensitive';
 
-interface CacheEntry {
+export interface CacheEntry {
   key: string;
-  value: unknown;
-  bucket: CacheBucket;
+  value: string;
+  bucket: BucketType;
   tokens: number;
-  createdAt: number;
-  lastAccessedAt: number;
-  reason?: string; // Documentation only, NEVER used for eviction logic
+  reason?: string; // Documentation only - never used in eviction logic
+  timestamp: number; // For LRU tracking
+  lastAccessed: number; // For LRU tracking
+  ttl: number; // Time to live in milliseconds
 }
 
-interface CacheStats {
+export interface CacheStats {
+  totalEntries: number;
   totalTokens: number;
-  entryCount: number;
   bucketStats: {
-    transient: { tokens: number; entries: number };
-    decision: { tokens: number; entries: number };
-    sensitive: { tokens: number; entries: number };
+    transient: { entries: number; tokens: number };
+    decision: { entries: number; tokens: number };
+    sensitive: { entries: number; tokens: number };
   };
+  evictionCount: number;
+  hitCount: number;
+  missCount: number;
 }
 
-export class SharedMemoryCache extends EventEmitter {
+export class SharedMemoryCache {
   private cache: Map<string, CacheEntry> = new Map();
   private readonly MAX_TOKENS = 50000;
-  private readonly SENSITIVE_QUOTA = 5000; // 10% of 50k
-  private readonly TTL = {
-    transient: 1 * 60 * 60 * 1000, // 1 hour
+  private readonly SENSITIVE_TOKENS = 5000; // 10% of total
+
+  // TTL configurations (in milliseconds)
+  private readonly TTL_CONFIG = {
+    transient: 60 * 60 * 1000, // 1 hour
     decision: 24 * 60 * 60 * 1000, // 24 hours
     sensitive: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 
+  // Stats tracking
+  private evictionCount = 0;
+  private hitCount = 0;
+  private missCount = 0;
+
   constructor() {
-    super();
-    // Start cleanup loop to evict expired entries
-    this.startCleanupLoop();
+    this.log('[SharedMemoryCache] Initialized with MAX_TOKENS:', this.MAX_TOKENS);
   }
 
   /**
-   * Store a value in the cache with automatic token estimation and eviction.
-   *
-   * @param key - Unique identifier for this cached value
-   * @param value - Any JSON-serializable value (string, object, array, etc.)
-   * @param bucket - Which bucket to store in: 'transient' | 'decision' | 'sensitive'
-   * @param reason - Optional human-readable note explaining why this was cached
-   *                 (for observability only, never affects eviction logic)
-   *
-   * @throws Error if sensitive bucket quota exceeded or total capacity can't be freed
-   *
-   * @example
-   * // Store a team decision
-   * cache.store(
-   *   'chosen_database',
-   *   { type: 'PostgreSQL', reason: 'Better JSON support' },
-   *   'decision',
-   *   'Team vote: 4/5 agreed on Postgres over MySQL'
-   * );
-   *
-   * @example
-   * // Store temporary work context
-   * cache.store(
-   *   'current_refactor_status',
-   *   'Halfway through auth module - need to finish token validation',
-   *   'transient'
-   * );
+   * Log only if VERBOSE_CACHE_LOGGING is enabled
    */
-  store(key: string, value: unknown, bucket: CacheBucket, reason?: string): void {
+  private log(...args: any[]): void {
+    if (process.env.VERBOSE_CACHE_LOGGING === 'true') {
+      console.log(...args);
+    }
+  }
+
+  /**
+   * Warn only if VERBOSE_CACHE_LOGGING is enabled
+   */
+  private warn(...args: any[]): void {
+    if (process.env.VERBOSE_CACHE_LOGGING === 'true') {
+      console.warn(...args);
+    }
+  }
+  
+  /**
+   * Store a value in the cache with classification and optional reason.
+   * 
+   * @param key - Unique identifier for the entry
+   * @param value - Content to cache
+   * @param bucket - Classification bucket (transient/decision/sensitive)
+   * @param reason - Optional documentation for why this is being cached (not used in eviction)
+   */
+  store(key: string, value: string, bucket: BucketType, reason?: string): void {
     const tokens = this.estimateTokens(value);
-
-    // Remove old entry if exists
-    if (this.cache.has(key)) {
-      const oldEntry = this.cache.get(key)!;
-      this.emit('log', {
-        event: 'store_replace',
-        key,
-        bucket,
-        oldTokens: oldEntry.tokens,
-        newTokens: tokens,
-        reason,
-        timestamp: Date.now(),
-      });
-    }
-
-    // Check if this violates sensitive bucket quota
-    if (bucket === 'sensitive') {
-      const sensitiveTokens = this.getTokensInBucket('sensitive');
-      if (sensitiveTokens + tokens > this.SENSITIVE_QUOTA) {
-        this.emit('log', {
-          event: 'store_rejected',
-          key,
-          bucket,
-          tokens,
-          reason: 'Sensitive bucket quota exceeded',
-          timestamp: Date.now(),
-        });
-        throw new Error(
-          `Cannot store ${tokens} tokens in sensitive bucket (quota: ${this.SENSITIVE_QUOTA}, used: ${sensitiveTokens})`
-        );
-      }
-    }
-
+    const now = Date.now();
+    
     const entry: CacheEntry = {
       key,
       value,
       bucket,
       tokens,
-      createdAt: Date.now(),
-      lastAccessedAt: Date.now(),
       reason,
+      timestamp: now,
+      lastAccessed: now,
+      ttl: this.TTL_CONFIG[bucket],
     };
-
+    
+    // Check if storing in sensitive bucket would exceed its allocation
+    if (bucket === 'sensitive') {
+      const currentSensitiveTokens = this.getBucketTokens('sensitive');
+      if (currentSensitiveTokens + tokens > this.SENSITIVE_TOKENS) {
+        this.warn(
+          `[SharedMemoryCache] STORE REJECTED: Sensitive bucket full. ` +
+          `Current: ${currentSensitiveTokens}, Requested: ${tokens}, Max: ${this.SENSITIVE_TOKENS}. ` +
+          `Key: ${key}`
+        );
+        return;
+      }
+    }
+    
+    // Remove existing entry if updating
+    if (this.cache.has(key)) {
+      const oldEntry = this.cache.get(key)!;
+      this.log(
+        `[SharedMemoryCache] UPDATE: ${key} | Bucket: ${bucket} | ` +
+        `Tokens: ${oldEntry.tokens} → ${tokens}${reason ? ` | Reason: ${reason}` : ''}`
+      );
+    } else {
+      this.log(
+        `[SharedMemoryCache] STORE: ${key} | Bucket: ${bucket} | ` +
+        `Tokens: ${tokens}${reason ? ` | Reason: ${reason}` : ''}`
+      );
+    }
+    
     this.cache.set(key, entry);
-
-    // Evict if necessary
+    
+    // Evict entries if necessary (respects sensitive bucket protection)
     this.enforceCapacity();
-
-    this.emit('log', {
-      event: 'store',
-      key,
-      bucket,
-      tokens,
-      reason,
-      totalTokens: this.getTotalTokens(),
-      timestamp: Date.now(),
-    });
   }
-
+  
   /**
-   * Retrieve a value from the cache, checking TTL expiration.
-   *
-   * @param key - The key to look up
-   * @returns The cached value, or null if not found/expired
-   *
-   * Note: Automatically updates lastAccessedAt for LRU tracking
-   *
-   * @example
-   * // Check if team already decided on a database
-   * const dbChoice = cache.retrieve('chosen_database');
-   * if (dbChoice) {
-   *   console.log('Already decided:', dbChoice);
-   *   // Skip re-discussion
-   * } else {
-   *   // Need to discuss and vote
-   * }
+   * Retrieve a value from the cache.
+   * Updates LRU tracking and checks TTL expiration.
    */
-  retrieve(key: string): unknown | null {
+  retrieve(key: string): string | null {
     const entry = this.cache.get(key);
-
+    
     if (!entry) {
-      this.emit('log', {
-        event: 'retrieve_miss',
-        key,
-        timestamp: Date.now(),
-      });
+      this.missCount++;
+      this.log(`[SharedMemoryCache] MISS: ${key}`);
       return null;
     }
-
-    // Check TTL
-    const age = Date.now() - entry.createdAt;
-    if (age > this.TTL[entry.bucket]) {
+    
+    // Check if entry has expired
+    const now = Date.now();
+    if (now - entry.timestamp > entry.ttl) {
+      this.log(
+        `[SharedMemoryCache] EXPIRED: ${key} | Bucket: ${entry.bucket} | ` +
+        `Age: ${Math.round((now - entry.timestamp) / 1000 / 60)} minutes`
+      );
       this.cache.delete(key);
-      this.emit('log', {
-        event: 'retrieve_expired',
-        key,
-        bucket: entry.bucket,
-        ageMs: age,
-        ttlMs: this.TTL[entry.bucket],
-        timestamp: Date.now(),
-      });
+      this.evictionCount++;
+      this.missCount++;
       return null;
     }
-
-    // Update LRU timestamp
-    entry.lastAccessedAt = Date.now();
-
-    this.emit('log', {
-      event: 'retrieve_hit',
-      key,
-      bucket: entry.bucket,
-      tokens: entry.tokens,
-      ageMs: age,
-      timestamp: Date.now(),
-    });
-
+    
+    // Update LRU tracking
+    entry.lastAccessed = now;
+    this.hitCount++;
+    
+    this.log(
+      `[SharedMemoryCache] HIT: ${key} | Bucket: ${entry.bucket} | ` +
+      `Tokens: ${entry.tokens}`
+    );
+    
     return entry.value;
   }
-
+  
   /**
-   * Manually evict a key from the cache.
-   *
-   * This is the ONLY way to remove items from the 'sensitive' bucket
-   * (they never auto-evict on TTL or capacity pressure).
-   *
-   * @param key - The key to remove
-   * @returns true if evicted, false if key didn't exist
-   *
-   * @example
-   * // Remove sensitive data after use
-   * cache.evict('api_credentials_temp');
+   * Manually evict an entry from the cache.
    */
   evict(key: string): boolean {
     const entry = this.cache.get(key);
+    
     if (!entry) {
+      this.log(`[SharedMemoryCache] EVICT FAILED: ${key} not found`);
       return false;
     }
-
+    
+    this.log(
+      `[SharedMemoryCache] MANUAL EVICT: ${key} | Bucket: ${entry.bucket} | ` +
+      `Tokens: ${entry.tokens}`
+    );
+    
     this.cache.delete(key);
-
-    this.emit('log', {
-      event: 'evict_manual',
-      key,
-      bucket: entry.bucket,
-      tokens: entry.tokens,
-      timestamp: Date.now(),
-    });
-
+    this.evictionCount++;
     return true;
   }
-
+  
   /**
-   * Get current cache statistics for monitoring and debugging.
-   *
-   * @returns Object containing:
-   *   - totalTokens: Total tokens across all buckets
-   *   - entryCount: Total number of cached entries
-   *   - bucketStats: Per-bucket breakdown of tokens and entry counts
-   *
-   * @example
-   * const stats = cache.getStats();
-   * console.log(`Cache using ${stats.totalTokens}/50000 tokens`);
-   * console.log(`Decisions cached: ${stats.bucketStats.decision.entries}`);
+   * Get cache statistics.
    */
   getStats(): CacheStats {
     const stats: CacheStats = {
-      totalTokens: 0,
-      entryCount: this.cache.size,
+      totalEntries: this.cache.size,
+      totalTokens: this.getTotalTokens(),
       bucketStats: {
-        transient: { tokens: 0, entries: 0 },
-        decision: { tokens: 0, entries: 0 },
-        sensitive: { tokens: 0, entries: 0 },
+        transient: this.getBucketStats('transient'),
+        decision: this.getBucketStats('decision'),
+        sensitive: this.getBucketStats('sensitive'),
       },
+      evictionCount: this.evictionCount,
+      hitCount: this.hitCount,
+      missCount: this.missCount,
     };
-
-    for (const entry of this.cache.values()) {
-      stats.totalTokens += entry.tokens;
-      stats.bucketStats[entry.bucket].tokens += entry.tokens;
-      stats.bucketStats[entry.bucket].entries += 1;
-    }
-
+    
     return stats;
   }
-
-  // ============== PRIVATE HELPERS ==============
-
-  private getTotalTokens(): number {
-    let total = 0;
-    for (const entry of this.cache.values()) {
-      total += entry.tokens;
-    }
-    return total;
-  }
-
-  private getTokensInBucket(bucket: CacheBucket): number {
-    let total = 0;
-    for (const entry of this.cache.values()) {
-      if (entry.bucket === bucket) {
-        total += entry.tokens;
-      }
-    }
-    return total;
-  }
-
-  private estimateTokens(value: unknown): number {
-    // Rough estimate: 1 token ≈ 4 characters
-    const str = JSON.stringify(value);
-    return Math.ceil(str.length / 4);
-  }
-
+  
+  /**
+   * Enforce capacity constraints with LRU eviction.
+   * NEVER auto-evicts from sensitive bucket.
+   */
   private enforceCapacity(): void {
     const totalTokens = this.getTotalTokens();
-
+    
     if (totalTokens <= this.MAX_TOKENS) {
-      return; // Within capacity
+      return; // Under capacity, no eviction needed
     }
-
-    // Evict LRU entries from non-sensitive buckets until under capacity
-    const entriesToEvict = Array.from(this.cache.values())
-      .filter((e) => e.bucket !== 'sensitive')
-      .sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-
-    let currentTotal = totalTokens;
-    for (const entry of entriesToEvict) {
-      if (currentTotal <= this.MAX_TOKENS) break;
-
+    
+    this.log(
+      `[SharedMemoryCache] CAPACITY EXCEEDED: ${totalTokens}/${this.MAX_TOKENS} tokens. ` +
+      `Starting eviction...`
+    );
+    
+    // Sort entries by lastAccessed (oldest first), excluding sensitive bucket
+    const evictablEntries = Array.from(this.cache.values())
+      .filter(e => e.bucket !== 'sensitive')
+      .sort((a, b) => a.lastAccessed - b.lastAccessed);
+    
+    let tokensToFree = totalTokens - this.MAX_TOKENS;
+    let evicted = 0;
+    
+    for (const entry of evictablEntries) {
+      if (tokensToFree <= 0) break;
+      
+      this.log(
+        `[SharedMemoryCache] AUTO EVICT (LRU): ${entry.key} | ` +
+        `Bucket: ${entry.bucket} | Tokens: ${entry.tokens} | ` +
+        `Last accessed: ${Math.round((Date.now() - entry.lastAccessed) / 1000 / 60)} minutes ago`
+      );
+      
       this.cache.delete(entry.key);
-      currentTotal -= entry.tokens;
-
-      this.emit('log', {
-        event: 'evict_lru',
-        key: entry.key,
-        bucket: entry.bucket,
-        tokens: entry.tokens,
-        reason: 'LRU eviction (capacity exceeded)',
-        timestamp: Date.now(),
-      });
+      tokensToFree -= entry.tokens;
+      evicted++;
+      this.evictionCount++;
     }
-
-    // Last resort: if still over capacity and sensitive entries exist, warn
-    if (this.getTotalTokens() > this.MAX_TOKENS) {
-      this.emit('log', {
-        event: 'capacity_warning',
-        totalTokens: this.getTotalTokens(),
-        maxTokens: this.MAX_TOKENS,
-        reason: 'Unable to evict below capacity (sensitive entries locked)',
-        timestamp: Date.now(),
-      });
-    }
+    
+    this.log(
+      `[SharedMemoryCache] EVICTION COMPLETE: ${evicted} entries removed, ` +
+      `${this.getTotalTokens()}/${this.MAX_TOKENS} tokens remaining`
+    );
   }
-
-  private startCleanupLoop(): void {
-    // Run cleanup every 5 minutes
-    // Use unref() so the interval doesn't prevent process exit
-    const interval = setInterval(() => {
+  
+  /**
+   * Estimate token count for a string (rough approximation).
+   * Using ~4 characters per token as a heuristic.
+   */
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+  
+  /**
+   * Get total tokens across all buckets.
+   */
+  private getTotalTokens(): number {
+    return Array.from(this.cache.values()).reduce((sum, entry) => sum + entry.tokens, 0);
+  }
+  
+  /**
+   * Get token count for a specific bucket.
+   */
+  private getBucketTokens(bucket: BucketType): number {
+    return Array.from(this.cache.values())
+      .filter(e => e.bucket === bucket)
+      .reduce((sum, entry) => sum + entry.tokens, 0);
+  }
+  
+  /**
+   * Get stats for a specific bucket.
+   */
+  private getBucketStats(bucket: BucketType): { entries: number; tokens: number } {
+    const entries = Array.from(this.cache.values()).filter(e => e.bucket === bucket);
+    return {
+      entries: entries.length,
+      tokens: entries.reduce((sum, e) => sum + e.tokens, 0),
+    };
+  }
+  
+  /**
+   * Export cache state for persistence.
+   */
+  exportState(): CacheEntry[] {
+    return Array.from(this.cache.values());
+  }
+  
+  /**
+   * Import cache state from persistence.
+   */
+  importState(entries: CacheEntry[]): void {
+    this.log(`[SharedMemoryCache] Importing ${entries.length} entries from persistence`);
+    
+    this.cache.clear();
+    
+    for (const entry of entries) {
+      // Check TTL on import - don't restore expired entries
       const now = Date.now();
-      let evicted = 0;
-
-      for (const [key, entry] of this.cache.entries()) {
-        const age = now - entry.createdAt;
-        if (age > this.TTL[entry.bucket]) {
-          this.cache.delete(key);
-          evicted++;
-
-          this.emit('log', {
-            event: 'evict_ttl',
-            key,
-            bucket: entry.bucket,
-            tokens: entry.tokens,
-            ageMs: age,
-            ttlMs: this.TTL[entry.bucket],
-            timestamp: Date.now(),
-          });
-        }
+      if (now - entry.timestamp <= entry.ttl) {
+        this.cache.set(entry.key, entry);
+      } else {
+        this.log(
+          `[SharedMemoryCache] SKIP EXPIRED on import: ${entry.key} | ` +
+          `Bucket: ${entry.bucket}`
+        );
       }
-
-      if (evicted > 0) {
-        this.emit('log', {
-          event: 'cleanup_cycle',
-          evictedCount: evicted,
-          remainingTokens: this.getTotalTokens(),
-          timestamp: Date.now(),
-        });
-      }
-    }, 5 * 60 * 1000);
-
-    // Don't let this interval prevent the process from exiting
-    interval.unref();
+    }
+    
+    this.log(
+      `[SharedMemoryCache] Import complete: ${this.cache.size} active entries, ` +
+      `${this.getTotalTokens()} tokens`
+    );
   }
 }

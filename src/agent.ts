@@ -18,6 +18,7 @@ interface ApiResponse {
     reasoning: string;
     notes: string;
     consensus?: 'agree' | 'building' | 'disagree';
+    returnForFix?: boolean;
 }
 
 export class Agent extends BaseAgent {
@@ -165,11 +166,18 @@ export class Agent extends BaseAgent {
     }
 
     private cleanJsonResponse(response: string): string {
-        // Remove markdown code blocks if present
-        const originalResponse = response;
-        response = response.replace(/```json\n/g, '')
-                          .replace(/```\n/g, '')
-                          .replace(/```/g, '');
+        // First, check if there's a ```json code block
+        const jsonBlockMatch = response.match(/```json\s*\n([\s\S]*?)\n```/);
+        if (jsonBlockMatch) {
+            // Extract JSON from the code block
+            response = jsonBlockMatch[1].trim();
+        } else {
+            // Remove any markdown code blocks that might be in explanations
+            response = response.replace(/```typescript[\s\S]*?```/g, '') // Remove TypeScript blocks
+                              .replace(/```javascript[\s\S]*?```/g, '') // Remove JavaScript blocks
+                              .replace(/```[\s\S]*?```/g, ''); // Remove other code blocks
+        }
+
         // Clean up any leading/trailing whitespace
         response = response.trim();
 
@@ -186,8 +194,20 @@ export class Agent extends BaseAgent {
         }
 
         // Try to find JSON object boundaries and extract just the JSON
-        // Use brace counting instead of greedy regex to handle text after JSON
-        const firstBrace = response.indexOf('{');
+        // Look for first { that's followed by a quote (JSON property name)
+        let firstBrace = -1;
+        for (let i = 0; i < response.length - 1; i++) {
+            if (response[i] === '{') {
+                // Check if next non-whitespace char is a quote (JSON property)
+                let j = i + 1;
+                while (j < response.length && /\s/.test(response[j])) j++;
+                if (j < response.length && response[j] === '"') {
+                    firstBrace = i;
+                    break;
+                }
+            }
+        }
+
         if (firstBrace !== -1) {
             let braceCount = 0;
             let inString = false;
@@ -481,20 +501,52 @@ export class Agent extends BaseAgent {
                     },
                     "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
                     "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
-                    "notes": "Additional context or considerations"
-                }`;
+                    "notes": "Additional context or considerations",
+                    "returnForFix": false  // OPTIONAL: Set to true to pass BACKWARDS for immediate bug fix (use sparingly!)
+                }
+
+                **RETURN FOR FIX:**
+                If you find a critical bug/issue that needs immediate fixing:
+                - Set "returnForFix": true
+                - Set "targetAgent" to who should fix it (usually the agent who wrote the code)
+                - Explain the issue clearly in "reasoning"
+                Example: Sam finds bug in Morgan's code → returnForFix=true, targetAgent="Morgan"
+                After fix, workflow resumes normally from where it left off.`;
 
             if (this.apiClient instanceof Anthropic) {
                 const anthropicClient = this.apiClient as Anthropic;
+
+                // Log prompt size for debugging
+                console.log(`   📊 Prompt size: ${prompt.length} chars (~${Math.ceil(prompt.length / 4)} tokens)`);
+
+                // Show full prompt if environment variable is set
+                if (process.env.SHOW_AGENT_PROMPTS === 'true') {
+                    console.log(`\n${'='.repeat(80)}`);
+                    console.log(`📝 PROMPT TO ${this.config.name.toUpperCase()}:`);
+                    console.log(`${'='.repeat(80)}`);
+                    console.log(prompt);
+                    console.log(`${'='.repeat(80)}\n`);
+                }
+
+                // Wrap API call with timeout
+                const apiCallWithTimeout = () => {
+                    return Promise.race([
+                        anthropicClient.messages.create({
+                            model: this.config.model,
+                            max_tokens: 8192,
+                            messages: [{
+                                role: 'user',
+                                content: prompt
+                            }]
+                        }),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('API call timeout after 120s')), 120000)
+                        )
+                    ]);
+                };
+
                 const apiResponse = await retryWithBackoff(
-                    () => anthropicClient.messages.create({
-                        model: this.config.model,
-                        max_tokens: 8192,  // Increased to prevent truncation of long responses
-                        messages: [{
-                            role: 'user',
-                            content: prompt
-                        }]
-                    }),
+                    apiCallWithTimeout,
                     { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
                     `${this.config.name} API call`
                 );
@@ -617,6 +669,7 @@ export class Agent extends BaseAgent {
                 fileWrite: response.fileWrite,
                 notes: response.notes,
                 consensus: response.consensus,
+                returnForFix: response.returnForFix,
                 cost,
                 tokens
             };
