@@ -100,16 +100,28 @@
 - **Managed by:** Orchestrator (you see it in briefings)
 - **Size:** Can grow large (~50k tokens) - gets auto-summarized
 
-### SharedMemoryCache ⚠️ PARTIALLY INTEGRATED
+### SharedMemoryCache ✅ FULLY INTEGRATED
 - **File:** `src/memory/shared-cache.ts`
-- **Status:** Built & validated, but **not yet exposed to agents**
+- **Status:** Built, tested, and integrated into orchestrator
 - **What it does:**
   - Three-bucket LRU cache (transient/decision/sensitive)
   - Stores decisions across runs
-  - Token-aware eviction (50k cap)
-- **Current usage:** Orchestrator loads/stores decisions passively
-- **Missing:** Agent-facing API (agents can't call store/retrieve yet)
-- **Next step:** Decide if/how to integrate it for agent use
+  - Token-aware eviction (50k total, 5k sensitive)
+  - TTL-based expiration (1h/24h/7d per bucket)
+- **Current usage:** Orchestrator loads cached decisions on startup, stores new decisions after each cycle
+- **Test Coverage:** Comprehensive test suite at `src/memory/__tests__/shared-cache.test.ts`
+- **Usage Example:**
+  ```typescript
+  // Store a decision
+  cache.store('decision_key', 'We agreed to use LRU eviction', 'decision', 'Team consensus');
+  
+  // Retrieve it later
+  const decision = cache.retrieve('decision_key');
+  
+  // Check stats
+  const stats = cache.getStats();
+  console.log(`Cache has ${stats.totalEntries} entries using ${stats.totalTokens} tokens`);
+  ```
 - **Read the code:** See comprehensive JSDoc in the file
 
 ---
@@ -136,6 +148,30 @@
 ---
 
 ## Development Features
+
+### Testing Infrastructure
+- **Test Framework:** Vitest (configured)
+- **Test Location:** `src/**/__tests__/*.test.ts`
+- **Run Command:** `npm test` or `npx vitest`
+- **Features:**
+  - Fast execution with native ESM support
+  - Jest-compatible API (describe, test, expect, beforeEach, etc.)
+  - Built-in mocking with vi.spyOn(), vi.useFakeTimers()
+  - Coverage reports available
+- **Example Test Structure:**
+  ```typescript
+  import { describe, test, expect, beforeEach } from 'vitest';
+  
+  describe('MyFeature', () => {
+    beforeEach(() => {
+      // Setup before each test
+    });
+    
+    test('should do something', () => {
+      expect(result).toBe(expected);
+    });
+  });
+  ```
 
 ### TypeScript Validation
 - **Automatic:** Every fileWrite and fileEdit
