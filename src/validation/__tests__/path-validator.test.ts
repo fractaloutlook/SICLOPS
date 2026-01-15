@@ -36,8 +36,10 @@ describe('Path Validator', () => {
         expect(() => validatePath('../../../etc/passwd')).toThrow('Path traversal attempt detected');
       });
 
-      test('should throw on subtle traversal with valid prefix', () => {
-        expect(() => validatePath('src/../../../etc/passwd')).toThrow(PathValidationError);
+      test('should reject subtle traversal with valid prefix', () => {
+        const result = validatePath('src/../../../etc/passwd');
+        expect(result.isValid).toBe(false);
+        expect(result.error).toContain('Path must be in allowed directories');
       });
 
       test('should throw on mixed slashes traversal', () => {
