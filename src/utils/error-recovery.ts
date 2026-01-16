@@ -47,22 +47,47 @@ export async function retryWithBackoff<T>(
         } catch (error) {
             lastError = error instanceof Error ? error : new Error(String(error));
 
-            if (attempt === config.maxRetries) {
-                // Final attempt failed
-                break;
+            let delay = calculateDelay(attempt, config);
+
+            // Log error details before deciding on delay
+            console.log(`\n⚠️  ${operationName} failed (attempt ${attempt + 1}/${config.maxRetries + 1})`);
+            console.log(`   Error Type: ${lastError.name}`);
+            console.log(`   Error Message: ${lastError.message}`);
+            if ((lastError as any).response) {
+                console.log(`   Response Status: ${(lastError as any).response.status}`);
+                console.log(`   Response Text: ${(lastError as any).response.statusText}`);
             }
 
-            const delay = calculateDelay(attempt, config);
-            console.log(`\n⚠️  ${operationName} failed (attempt ${attempt + 1}/${config.maxRetries + 1})`);
-            console.log(`   Error: ${lastError.message}`);
-            console.log(`   Retrying in ${delay}ms...\n`);
+            // Special handling for 429/Rate Limit errors - force a long wait (65s) to clear quota
+            if (lastError.message.includes('429') || lastError.message.toLowerCase().includes('rate limit') || lastError.message.includes('Quota exceeded')) {
+                const rateLimitDelay = 65000; // 65 seconds
+                console.log(`\n⏳ Rate limit hit (429/Quota). Pausing for ${rateLimitDelay / 1000}s to clear quota...`);
+                console.log(`   (Note: Free tier has 15 RPM limit, or 10 RPM for Flash 2.0)`);
 
-            await sleep(delay);
+                // Simple countdown loop that doesn't mess with stdout as much
+                for (let i = rateLimitDelay / 1000; i > 0; i -= 5) {
+                    // Use a simple log instead of process.stdout.write to be safer in all shells
+                    if (i % 15 === 0) console.log(`   ...resuming in ${i}s`);
+                    await sleep(5000);
+                }
+                console.log('   Resuming now!\n');
+
+                // CRITICAL FIX: Don't count this against the retry limit!
+                // We paid the penalty (time), so we get a "free" retry.
+                attempt--;
+
+                delay = 0; // Delay handled above
+            }
+
+            if (delay > 0) { // Only sleep if not already handled by rate limit countdown
+                console.log(`   Retrying in ${delay}ms...\n`);
+                await sleep(delay);
+            }
         }
-    }
+    } // Correct position for the 'for' loop's closing brace
 
     throw new Error(`${operationName} failed after ${config.maxRetries + 1} attempts: ${lastError?.message}`);
-}
+} // Correct position for the 'retryWithBackoff' function's closing brace
 
 /**
  * Check if an error is retryable (vs fatal)
@@ -116,7 +141,7 @@ export class CircuitBreaker {
     constructor(
         private maxFailures: number = 5,
         private resetTimeoutMs: number = 60000 // 1 minute
-    ) {}
+    ) { }
 
     async execute<T>(operation: () => Promise<T>, operationName: string = 'operation'): Promise<T> {
         // Check if circuit is open

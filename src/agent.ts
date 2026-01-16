@@ -2,8 +2,10 @@ import { BaseAgent, AgentState } from './agent-base';
 import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequest, FileEditRequest } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai'; // Import Google Generative AI
 import { FileUtils } from './utils/file-utils';
 import { retryWithBackoff } from './utils/error-recovery';
+import { MODEL_COSTS, GEMINI_RATE_LIMIT_DELAY } from './config';
 
 interface ApiResponse {
     changes: {
@@ -22,12 +24,12 @@ interface ApiResponse {
 }
 
 export class Agent extends BaseAgent {
-    private readonly apiClient: Anthropic | OpenAI;
-    
+    private readonly apiClient: Anthropic | OpenAI | GoogleGenerativeAI;
+
     constructor(
         config: AgentConfig,
         logDirectory: string,
-        apiClient: Anthropic | OpenAI
+        apiClient: Anthropic | OpenAI | GoogleGenerativeAI
     ) {
         super(config, logDirectory);
         this.apiClient = apiClient;
@@ -174,8 +176,8 @@ export class Agent extends BaseAgent {
         } else {
             // Remove any markdown code blocks that might be in explanations
             response = response.replace(/```typescript[\s\S]*?```/g, '') // Remove TypeScript blocks
-                              .replace(/```javascript[\s\S]*?```/g, '') // Remove JavaScript blocks
-                              .replace(/```[\s\S]*?```/g, ''); // Remove other code blocks
+                .replace(/```javascript[\s\S]*?```/g, '') // Remove JavaScript blocks
+                .replace(/```[\s\S]*?```/g, ''); // Remove other code blocks
         }
 
         // Clean up any leading/trailing whitespace
@@ -271,7 +273,8 @@ export class Agent extends BaseAgent {
 
     async processFile(
         file: ProjectFile,
-        availableTargets: string[]
+        availableTargets: string[],
+        summarizedOrchestratorHistory: string // New parameter for summarized history
     ): Promise<ProcessResult> {
         if (!this.canProcess()) {
             await this.log('Refusing to process - limit reached', {
@@ -293,77 +296,130 @@ export class Agent extends BaseAgent {
         }
 
         try {
-            let response: ApiResponse;
-            let tokens: { input: number; output: number };
-            let cost: number;
+            let response: ApiResponse = {} as ApiResponse; // Initialize response
+            let tokens: { input: number; output: number; cacheWrite?: number; cacheRead?: number } = { input: 0, output: 0 }; // Initialize tokens
+            let cost: number = 0; // Initialize cost
 
-            const historyText = file.history
-                .map(h => {
-                    const changes = typeof h.changes === 'string' 
-                        ? h.changes 
-                        : h.changes.description + (h.changes.code ? '\nCode:\n' + h.changes.code : '');
-                    return `${h.agent}: ${h.action}\n${h.notes}${changes ? '\nChanges made:\n' + changes : ''}`;
-                })
-                .join('\n\n');
+            // Use the provided summarized history instead of mapping the entire file.history
+            const conversationHistoryForPrompt = summarizedOrchestratorHistory.length > 0
+                ? `SUMMARIZED CONVERSATION SO FAR:\n${summarizedOrchestratorHistory}\n\n`
+                : "You're first to speak.";
 
-            // Check if this is a conversation vs code task
             const isConversation = file.content.includes('TEAM DISCUSSION');
             const requireConsensus = file.content.includes('Reach consensus');
 
-            const prompt = isConversation ?
-                `You are ${this.config.name}. ${this.config.personality}
-                Your focus: ${this.config.taskFocus}
+            // 1. Construct STATIC System Prompt (Cached)
+            // Includes Identity, Architecture, Workflow, Format
+            const systemPrompt = `You are ${this.config.name}. ${this.config.personality}
+Your focus: ${this.config.taskFocus}
 
-                DISCUSSION CONTEXT:
+🏗️ WHAT YOU'RE BUILDING:
+You're working on YOUR OWN multi-agent framework called SICLOPS (Self-Improving Collective).
+This is self-improvement work - you ARE the product.
+
+**Your System Architecture:**
+- 5 specialized agents (you and 4 colleagues) working in a fixed workflow sequence
+- Orchestrator (src/orchestrator.ts) coordinates your turns and handles file operations
+- Each agent gets up to 30 turns per cycle (extended for collaboration)
+- You can self-pass up to 3 times for multi-step work within a cycle
+- All code changes are validated with TypeScript compilation before being saved
+
+**Your Current Capabilities:**
+- fileRead: Request to read any file (orchestrator provides content in your next turn)
+- fileEdit: Make surgical line-by-line edits to existing files
+- fileWrite: Create brand new files (not for editing existing ones)
+- Notebooks: Each agent has notes/*.md files to track observations across runs
+
+**What You've Already Built:**
+- SharedMemoryCache (src/memory/shared-cache.ts) - A 3-bucket LRU cache for sharing context
+- State persistence (data/state/orchestrator-context.json) - Costs and progress saved across runs
+- Agent notebooks system (notes/*.md) - For tracking ideas and reducing scope creep
+- File operation infrastructure - Read/edit/write with validation
+
+**Your Role in the Team:**
+You're ${this.config.name} (${this.config.role}). ${this.config.personality}
+Your focus: ${this.config.taskFocus}
+
+**How Your System Runs:**
+Your system is designed to run continuously in cycles, alternating between two stages:
+1. **Discussion/Consensus Stage:** Decide what to implement next as a team
+2. **Implementation Stage:** Write the code for what you decided
+
+The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
+
+**Important Context:**
+- This is early POC - bugs and rough edges are expected
+- Focus on getting features working first, robustness later
+- No external users yet - you're building infrastructure for yourselves
+- All 5 agents are Claude Sonnet 4.5 models (~$0.15-0.20 per cycle)
+- You're improving your own ability to collaborate and maintain context
+
+📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
+- Read it first (fileRead) to see your previous observations
+- Update it (fileEdit) with new learnings before passing on
+- Log non-MVP ideas there instead of implementing them
+- Review suggestions from other agents in their notebooks
+
+📖 HOW FILE READING WORKS (SYNCHRONOUS):
+File reading happens WITHIN your turn. You can request multiple files and they'll all be provided before you respond.
+Example workflow:
+1. Request fileRead for jordan-notes.md → Orchestrator immediately provides content
+2. Process content, request fileRead for orchestrator.ts → Orchestrator immediately provides content
+3. Process both files, make fileEdit with your changes → Pass to next agent
+All of this happens in ONE turn! No self-passing needed for file reads.
+Look for "📖 File content from..." in the File history section - it appears immediately after you request it.
+
+⚠️ CRITICAL: EVERY TURN MUST PRODUCE ACTION
+DO NOT just read files and pass without doing something productive!
+
+**Required: After reading files, you MUST:**
+- Make code changes (fileEdit or fileWrite), OR
+- Update your notebook with observations (fileEdit on notes/*.md), OR
+- Pass with explicit reasoning why NO action is needed this turn
+
+**FORBIDDEN:**
+❌ Reading files → passing → reading same files again → passing (INFINITE LOOP!)
+❌ Self-passing more than once without making file changes
+❌ Reading notebooks but not updating them with new information
+❌ Saying "waiting for X" when YOU could do the work yourself
+
+**Cost awareness:** Each turn costs ~$0.50-0.70. Make it count!
+
+🔄 WHEN TO SELF-PASS:
+- Use self-passing ONLY if you need to wait for fileEdit/fileWrite results to be validated
+- For just reading files: NO self-pass needed (happens within same turn)
+- Max 3 self-passes if you need multiple edit/write cycles
+
+CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
+You MUST respond with ONLY a valid JSON object.
+IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSON.
+Format:
+{
+    "changes": {
+        "description": "Brief description of changes made",
+        "code": "REQUIRED: Complete TypeScript implementation code that can be directly used. Escape all newlines as \\\\n",
+        "location": "REQUIRED: Specific file/class/method where this code belongs"
+    },
+    "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
+    "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
+    "notes": "Additional context or considerations",
+    "returnForFix": false, // OPTIONAL: Set to true to pass BACKWARDS for immediate bug fix (use sparingly!)
+    ${requireConsensus ? '"consensus": "agree | building | disagree"' : ''}
+}`;
+
+            // 2. Construct DYNAMIC User Prompt (Uncached - changes every turn)
+            const userPrompt = isConversation ?
+                `DISCUSSION CONTEXT:
                 ${file.content}
 
-                CONVERSATION SO FAR:
-                ${historyText || "You're first to speak."}
+                ${conversationHistoryForPrompt}
 
                 AVAILABLE team members (ONLY choose from this list): ${availableTargets.join(', ')}
 
                 Your turn to contribute to the discussion!
-
-                🏗️ WHAT YOU'RE BUILDING:
-                You're working on YOUR OWN multi-agent framework called SICLOPS (Self-Improving Collective).
-                This is self-improvement work - you ARE the product.
-
-                **Your System:**
-                - 5 specialized agents working together in a fixed workflow
-                - Orchestrator coordinates turns and handles file operations
-                - You're all Claude Sonnet 4.5 models (~$0.15-0.20 per cycle)
-                - Building features to improve your own collaboration and memory
-
-                **Your Role:**
-                You're ${this.config.name} (${this.config.role}). ${this.config.personality}
-
-                **How Your System Runs:**
-                Your system runs continuously in cycles, alternating between two stages:
-                1. **Discussion/Consensus Stage:** Decide what to implement next as a team
-                2. **Implementation Stage:** Write the code for what you decided
-
-                The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
-
-                **Context:**
-                - This is early POC - bugs expected, focus on working features first
-                - No external users - building infrastructure for yourselves
-                - You're improving your ability to share context and collaborate
-
-                📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
-                - Read it at start of turn (fileRead) to see your previous thoughts
-                - Update it with new observations (fileEdit) before passing on
-                - Log future ideas there instead of debating them now
-                - Only discuss MVP-critical items in conversation
-
-                📖 HOW FILE READING WORKS (SYNCHRONOUS):
-                File reading happens WITHIN your turn. Request multiple files if needed - they're all provided immediately.
-                Look for "📖 File content from..." in the "CONVERSATION SO FAR" section.
-
-                🔄 SELF-PASSING: You can pass to yourself up to 3 times if needed.
-                Note: File reads don't require self-passing (they happen within same turn).
-
-                IMPORTANT: This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}. Reference other team members' points. Be direct and CONCISE (under 300 words). DO NOT write implementation code - just talk about what you think should be built and why.
-
+                This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}.
+                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) for full detailed history if needed, as the prompt now contains only a summarized view of past interactions.
+                
                 ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
                 - "agree" = You think we've reached consensus and can move forward
                 - "building" = Discussion is productive but not ready to conclude
@@ -371,139 +427,29 @@ export class Agent extends BaseAgent {
 
                 Discussion concludes when 4 out of 5 team members signal "agree".` : `WORKFLOW: Each agent contributes their perspective, then passes to the next agent. Work through all team members sequentially.`}
 
-                Respond with ONLY a JSON object in this format:
-                {
-                    "changes": {
-                        "description": "Your thoughts and contribution. Be direct. ${requireConsensus ? 'Challenge ideas when needed.' : 'Build on ideas.'} Reference specific points others made. NO CODE - just discussion!",
-                        "code": "",
-                        "location": "discussion"
-                    },
-                    "targetAgent": "REQUIRED: Choose ONLY from available list above: ${availableTargets.join(', ')}",
-                    "reasoning": "Brief note on who should speak next and why",
-                    "notes": "Additional thoughts"${requireConsensus ? ',\n                    "consensus": "agree | building | disagree"' : ''}
-                }`
+                Respond with JSON.`
                 :
-                `You are ${this.config.name}. ${this.config.personality}
-                Your focus: ${this.config.taskFocus}
-
-                Current file:
+                `Current file/Context:
                 ${file.content}
 
-                File history:
-                ${historyText}
+                ${conversationHistoryForPrompt}
 
                 Available team members to pass to: ${availableTargets.join(', ')}
 
-                🏗️ WHAT YOU'RE BUILDING:
-                You're working on YOUR OWN multi-agent framework called SICLOPS (Self-Improving Collective).
-                This is self-improvement work - you ARE the product.
+                Based on your role and focus:
+                1. Review the current state
+                2. Make any necessary changes OR log them in your notebook if not MVP-critical
+                3. Choose a team member to pass this to (can be yourself for multi-step work)
+                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) for full detailed history if needed, as the prompt now contains only a summarized view of past interactions.
 
-                **Your System Architecture:**
-                - 5 specialized agents (you and 4 colleagues) working in a fixed workflow sequence
-                - Orchestrator (src/orchestrator.ts) coordinates your turns and handles file operations
-                - Each agent gets up to 6 turns per cycle before being rate-limited
-                - You can self-pass up to 3 times for multi-step work within a cycle
-                - All code changes are validated with TypeScript compilation before being saved
-
-                **Your Current Capabilities:**
-                - fileRead: Request to read any file (orchestrator provides content in your next turn)
-                - fileEdit: Make surgical line-by-line edits to existing files
-                - fileWrite: Create brand new files (not for editing existing ones)
-                - Notebooks: Each agent has notes/*.md files to track observations across runs
-
-                **What You've Already Built:**
-                - SharedMemoryCache (src/memory/shared-cache.ts) - A 3-bucket LRU cache for sharing context
-                - State persistence (data/state/orchestrator-context.json) - Costs and progress saved across runs
-                - Agent notebooks system (notes/*.md) - For tracking ideas and reducing scope creep
-                - File operation infrastructure - Read/edit/write with validation
-
+                ${file.content.includes('Current Task: Complete SharedMemoryCache Integration') ? `
                 **Current Task: Complete SharedMemoryCache Integration**
                 The cache exists but isn't connected to the orchestrator yet. You need to:
                 1. Import SharedMemoryCache in orchestrator.ts
                 2. Initialize it in the constructor
                 3. Load cached decisions in loadContext()
                 4. Store new decisions in updateContextAtEnd()
-                This will let you (agents) remember important context across runs instead of starting fresh each time.
-
-                **Your Role in the Team:**
-                You're ${this.config.name} (${this.config.role}). ${this.config.personality}
-                Your focus: ${this.config.taskFocus}
-
-                **How Your System Runs:**
-                Your system is designed to run continuously in cycles, alternating between two stages:
-                1. **Discussion/Consensus Stage:** Decide what to implement next as a team
-                2. **Implementation Stage:** Write the code for what you decided
-
-                The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
-
-                **Important Context:**
-                - This is early POC - bugs and rough edges are expected
-                - Focus on getting features working first, robustness later
-                - No external users yet - you're building infrastructure for yourselves
-                - All 5 agents are Claude Sonnet 4.5 models (~$0.15-0.20 per cycle)
-                - You're improving your own ability to collaborate and maintain context
-
-                📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
-                - Read it first (fileRead) to see your previous observations
-                - Update it (fileEdit) with new learnings before passing on
-                - Log non-MVP ideas there instead of implementing them
-                - Review suggestions from other agents in their notebooks
-
-                📖 HOW FILE READING WORKS (SYNCHRONOUS):
-                File reading happens WITHIN your turn. You can request multiple files and they'll all be provided before you respond.
-
-                Example workflow:
-                1. Request fileRead for jordan-notes.md
-                   → Orchestrator immediately provides content
-                2. Process content, request fileRead for orchestrator.ts
-                   → Orchestrator immediately provides content
-                3. Process both files, make fileEdit with your changes
-                   → Pass to next agent
-
-                All of this happens in ONE turn! No self-passing needed for file reads.
-                Look for "📖 File content from..." in the File history section - it appears immediately after you request it.
-
-                ⚠️ CRITICAL: EVERY TURN MUST PRODUCE ACTION
-                DO NOT just read files and pass without doing something productive!
-
-                **Required: After reading files, you MUST:**
-                - Make code changes (fileEdit or fileWrite), OR
-                - Update your notebook with observations (fileEdit on notes/*.md), OR
-                - Pass with explicit reasoning why NO action is needed this turn
-
-                **FORBIDDEN:**
-                ❌ Reading files → passing → reading same files again → passing (INFINITE LOOP!)
-                ❌ Self-passing more than once without making file changes
-                ❌ Reading notebooks but not updating them with new information
-                ❌ Saying "waiting for X" when YOU could do the work yourself
-
-                **Cost awareness:** Each turn costs ~$0.50-0.70. Make it count!
-
-                🔄 WHEN TO SELF-PASS:
-                - Use self-passing ONLY if you need to wait for fileEdit/fileWrite results to be validated
-                - For just reading files: NO self-pass needed (happens within same turn)
-                - Max 3 self-passes if you need multiple edit/write cycles
-
-                Based on your role and focus:
-                1. Review the current state
-                2. Make any necessary changes OR log them in your notebook if not MVP-critical
-                3. Choose a team member to pass this to (can be yourself for multi-step work)
-
-                CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
-                You MUST respond with ONLY a valid JSON object.
-                IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSON.
-                Format:
-                {
-                    "changes": {
-                        "description": "Brief description of changes made",
-                        "code": "REQUIRED: Complete TypeScript implementation code that can be directly used. Escape all newlines as \\\\n",
-                        "location": "REQUIRED: Specific file/class/method where this code belongs"
-                    },
-                    "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
-                    "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
-                    "notes": "Additional context or considerations",
-                    "returnForFix": false  // OPTIONAL: Set to true to pass BACKWARDS for immediate bug fix (use sparingly!)
-                }
+                ` : ''}
 
                 **RETURN FOR FIX:**
                 If you find a critical bug/issue that needs immediate fixing:
@@ -511,32 +457,40 @@ export class Agent extends BaseAgent {
                 - Set "targetAgent" to who should fix it (usually the agent who wrote the code)
                 - Explain the issue clearly in "reasoning"
                 Example: Sam finds bug in Morgan's code → returnForFix=true, targetAgent="Morgan"
-                After fix, workflow resumes normally from where it left off.`;
+                After fix, workflow resumes normally from where it left off.
+                
+                Respond with JSON.`;
 
             if (this.apiClient instanceof Anthropic) {
                 const anthropicClient = this.apiClient as Anthropic;
 
                 // Log prompt size for debugging
-                console.log(`   📊 Prompt size: ${prompt.length} chars (~${Math.ceil(prompt.length / 4)} tokens)`);
+                console.log(`   📊 Prompt size: System=${systemPrompt.length}, User=${userPrompt.length} chars`);
 
                 // Show full prompt if environment variable is set
                 if (process.env.SHOW_AGENT_PROMPTS === 'true') {
                     console.log(`\n${'='.repeat(80)}`);
                     console.log(`📝 PROMPT TO ${this.config.name.toUpperCase()}:`);
                     console.log(`${'='.repeat(80)}`);
-                    console.log(prompt);
+                    console.log(`[SYSTEM PROMPT - CACHED]\n${systemPrompt}\n`);
+                    console.log(`[USER PROMPT]\n${userPrompt}`);
                     console.log(`${'='.repeat(80)}\n`);
                 }
 
                 // Wrap API call with timeout
                 const apiCallWithTimeout = () => {
                     return Promise.race([
-                        anthropicClient.messages.create({
+                        anthropicClient.beta.promptCaching.messages.create({
                             model: this.config.model,
                             max_tokens: 8192,
+                            system: [{
+                                type: 'text',
+                                text: systemPrompt,
+                                cache_control: { type: 'ephemeral' } // Cache the static system prompt
+                            }],
                             messages: [{
                                 role: 'user',
-                                content: prompt
+                                content: userPrompt
                             }]
                         }),
                         new Promise<never>((_, reject) =>
@@ -546,22 +500,26 @@ export class Agent extends BaseAgent {
                 };
 
                 const apiResponse = await retryWithBackoff(
-                    apiCallWithTimeout,
+                    apiCallWithTimeout as any, // Cast to any because wrapper type inference can be tricky
                     { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
                     `${this.config.name} API call`
-                );
-                
+                ) as any;
+
                 if (!apiResponse.usage) {
                     throw new Error('No usage data in response');
                 }
 
+                // Extract granular usage stats for accurate costing
+                const usage = apiResponse.usage as any;
                 tokens = {
-                    input: apiResponse.usage.input_tokens,
-                    output: apiResponse.usage.output_tokens
+                    input: usage.input_tokens,
+                    output: usage.output_tokens,
+                    cacheWrite: usage.cache_creation_input_tokens || 0,
+                    cacheRead: usage.cache_read_input_tokens || 0
                 };
-                
-                cost = this.calculateClaudeCost(tokens.input, tokens.output);
-                
+
+                cost = this.calculateClaudeCost(tokens);
+
                 const textContent = apiResponse.content.find((block: any) => block.type === 'text');
                 if (!textContent || !('text' in textContent)) {
                     throw new Error('No text content in response');
@@ -571,7 +529,6 @@ export class Agent extends BaseAgent {
                 try {
                     response = JSON.parse(cleanedText) as ApiResponse;
                 } catch (parseError) {
-                    // Log the actual response for debugging
                     await this.log('JSON parse error - raw response:', {
                         rawResponse: textContent.text,
                         cleanedResponse: cleanedText,
@@ -580,34 +537,59 @@ export class Agent extends BaseAgent {
                     throw parseError;
                 }
 
-                
-            } else {
-                const apiResponse = await retryWithBackoff(
-                    () => (this.apiClient as OpenAI).chat.completions.create({
-                        model: this.config.model,
-                        messages: [{
-                            role: 'system',
-                            content: `You are ${this.config.name}. ${this.config.personality}\nYour focus: ${this.config.taskFocus}`
-                        }, {
-                            role: 'user',
-                            content: prompt
-                        }]
-                    }),
-                    { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
-                    `${this.config.name} API call`
-                );
-
-                if (!apiResponse.usage || !apiResponse.choices[0]?.message?.content) {
-                    throw new Error('Invalid API response structure');
+                // Log cache hit/miss for debugging
+                if (tokens.cacheRead && tokens.cacheRead > 0) {
+                    console.log(`   ⚡ Cache HIT! Read ${tokens.cacheRead} tokens (Saved $${((tokens.cacheRead / 1000000) * (3.00 - 0.30)).toFixed(4)})`);
+                } else if (tokens.cacheWrite && tokens.cacheWrite > 0) {
+                    console.log(`   💾 Cache WRITE! Wrote ${tokens.cacheWrite} tokens`);
                 }
 
-                tokens = {
-                    input: apiResponse.usage.prompt_tokens,
-                    output: apiResponse.usage.completion_tokens
-                };
-                
-                cost = this.calculateOpenAICost(tokens.input, tokens.output);
-                response = JSON.parse(this.cleanJsonResponse(apiResponse.choices[0].message.content)) as ApiResponse;
+            } else if (this.apiClient instanceof GoogleGenerativeAI) {
+                const googleClient = this.apiClient as GoogleGenerativeAI;
+                const model = googleClient.getGenerativeModel({ model: this.config.model });
+
+                // Gemini API handles system instructions via startChat system instruction parameter
+                // or prepended to the first message. For simplicity, we'll prepend for now.
+                const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+                try {
+                    const apiResponse = await retryWithBackoff(
+                        () => model.generateContent({
+                            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }]
+                        }),
+                        { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 5000, backoffMultiplier: 2 },
+                        `${this.config.name} API call`
+                    );
+
+                    const geminiResponse = apiResponse.response;
+                    const textContent = geminiResponse.text();
+
+                    if (!geminiResponse.usageMetadata) {
+                        // Some Gemini models/responses might not have usage data, warn but don't crash
+                        console.warn('⚠️ No usage metadata in Gemini response (using estimates)');
+                    }
+
+                    tokens = {
+                        input: geminiResponse.usageMetadata?.promptTokenCount || fullPrompt.length / 4, // Estimate if missing
+                        output: geminiResponse.usageMetadata?.candidatesTokenCount || textContent.length / 4,
+                        cacheWrite: 0,
+                        cacheRead: 0
+                    };
+
+                    cost = this.calculateGeminiCost(tokens.input, tokens.output);
+                    response = JSON.parse(this.cleanJsonResponse(textContent)) as ApiResponse;
+
+                    // Throttling for Free Tier (15 RPM limit)
+                    if (GEMINI_RATE_LIMIT_DELAY > 0) {
+                        console.log(`   ⏳ Throttling Gemini request for ${GEMINI_RATE_LIMIT_DELAY}ms (Free Tier limit)...`);
+                        await new Promise(resolve => setTimeout(resolve, GEMINI_RATE_LIMIT_DELAY));
+                    }
+                } catch (error: any) {
+                    if (error.message && (error.message.includes('404') || error.message.includes('not found') || error.message.includes('not supported'))) {
+                        throw new Error(`Invalid Gemini model "${this.config.model}" - please check src/config.ts. Original error: ${error.message}`);
+                    }
+                    throw error;
+                }
             }
 
             await this.updateState('process_file', tokens.input, tokens.output, cost);
@@ -621,7 +603,6 @@ export class Agent extends BaseAgent {
                     this.state.consecutiveSelfPasses++;
                     console.log(`[Agent:${this.config.name}] Self-passing for multi-step work (${this.state.consecutiveSelfPasses}/3)`);
                 } else {
-                    // Limit reached, must pass to someone else
                     const othersAvailable = availableTargets.filter(t => t !== this.config.name);
                     if (othersAvailable.length > 0) {
                         targetAgent = othersAvailable[0];
@@ -632,11 +613,9 @@ export class Agent extends BaseAgent {
                     this.state.consecutiveSelfPasses = 0; // Reset counter
                 }
             } else {
-                // Passing to someone else, reset counter
                 this.state.consecutiveSelfPasses = 0;
             }
 
-            // Validate target exists in available list
             if (!targetAgent || !availableTargets.includes(targetAgent)) {
                 console.warn(`[Agent:${this.config.name}] Invalid target "${targetAgent}", defaulting to ${availableTargets[0]}`);
                 targetAgent = availableTargets[0];
@@ -654,7 +633,6 @@ export class Agent extends BaseAgent {
                 fileWrite: response.fileWrite
             });
 
-            // Track file operations for adaptive turn limits
             if (response.fileRead) this.trackFileRead();
             if (response.fileEdit) this.trackFileEdit();
             if (response.fileWrite) this.trackFileWrite();
@@ -683,29 +661,56 @@ export class Agent extends BaseAgent {
         }
     }
 
-    private calculateClaudeCost(inputTokens: number, outputTokens: number): number {
+    private calculateClaudeCost(tokens: { input: number; output: number; cacheWrite?: number; cacheRead?: number }): number {
+        const inputStandard = tokens.input || 0;
+        const output = tokens.output || 0;
+        const cacheWrite = tokens.cacheWrite || 0;
+        const cacheRead = tokens.cacheRead || 0;
+
         if (this.config.model.includes('haiku')) {
-            // Claude Haiku (3.5/4.5): $1/$5 per million tokens
-            return (inputTokens * 0.000001) + (outputTokens * 0.000005);
+            return (inputStandard * (MODEL_COSTS.claude.haiku.input / 1000000)) +
+                (output * (MODEL_COSTS.claude.haiku.output / 1000000));
         }
-        // Claude Sonnet (3.5/4.5): $3/$15 per million tokens
-        return (inputTokens * 0.000003) + (outputTokens * 0.000015);
+        if (this.config.model.includes('opus')) {
+            return (inputStandard * (MODEL_COSTS.claude.opus.input / 1000000)) +
+                (output * (MODEL_COSTS.claude.opus.output / 1000000));
+        }
+
+        // Sonnet 3.5 Pricing with Caching
+        // Standard Input: $3.00 / 1M
+        // Cache Write: $3.75 / 1M
+        // Cache Read: $0.30 / 1M
+        // Output: $15.00 / 1M
+
+        const costStandard = inputStandard * (MODEL_COSTS.claude.sonnet.input / 1000000);
+        const costOutput = output * (MODEL_COSTS.claude.sonnet.output / 1000000);
+        const costCacheWrite = cacheWrite * 3.75 / 1000000;
+        const costCacheRead = cacheRead * 0.30 / 1000000;
+
+        return costStandard + costOutput + costCacheWrite + costCacheRead;
     }
 
     private calculateOpenAICost(inputTokens: number, outputTokens: number): number {
-        // GPT-4o mini: $0.15/$0.60 per million tokens
-        return (inputTokens * 0.00000015) + (outputTokens * 0.0000006);
+        if (this.config.model.includes('gpt-4o-mini')) {
+            return (inputTokens * (MODEL_COSTS.openai.gpt4o_mini.input / 1000000)) +
+                (outputTokens * (MODEL_COSTS.openai.gpt4o_mini.output / 1000000));
+        }
+        // Default to GPT-4o
+        return (inputTokens * (MODEL_COSTS.openai.gpt4o.input / 1000000)) +
+            (outputTokens * (MODEL_COSTS.openai.gpt4o.output / 1000000));
+    }
+
+    private calculateGeminiCost(inputTokens: number, outputTokens: number): number {
+        const modelName = this.config.model;
+        const geminiModelConfig = MODEL_COSTS.gemini[modelName as keyof typeof MODEL_COSTS.gemini]; // Type assertion
+        if (geminiModelConfig) {
+            return (inputTokens * (geminiModelConfig.input / 1000000)) +
+                (outputTokens * (geminiModelConfig.output / 1000000));
+        }
+        console.warn(`[Agent] Unknown Gemini model "${modelName}" for cost calculation. Using default.`);
+        // Fallback to a default if model not found in config
+        return (inputTokens * (MODEL_COSTS.gemini['gemini-1.5-pro'].input / 1000000)) +
+            (outputTokens * (MODEL_COSTS.gemini['gemini-1.5-pro'].output / 1000000));
     }
 }
-
-// 2025 Pricing Reference:
-//
-// Claude:
-// - Haiku 3.5/4.5: $1/$5 per million tokens
-// - Sonnet 3.5/4.5: $3/$15 per million tokens
-// - Opus 4.5: $5/$25 per million tokens
-//
-// OpenAI:
-// - GPT-4o: $2.50/$10 per million tokens
-// - GPT-4o mini: $0.15/$0.60 per million tokens
 
