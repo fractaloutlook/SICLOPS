@@ -112,8 +112,8 @@ export function shouldAllowAnotherTurn(
         };
     }
 
-    // Low productivity after 5+ turns = cut them off early (was 3, too aggressive!)
-    if (score < 0.1 && turnsUsed >= 5) {
+    // Low productivity after 10+ turns = cut them off early (was 5, too aggressive!)
+    if (score < 0.1 && turnsUsed >= 10) {
         return {
             shouldContinue: false,
             reason: `Low productivity (${(score * 100).toFixed(0)}%) - stopping early to save cost`,

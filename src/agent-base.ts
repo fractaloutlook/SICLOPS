@@ -24,7 +24,7 @@ export interface AgentState {
 export abstract class BaseAgent {
     protected state: AgentState;
     protected logPath: string;
-    
+
     constructor(
         public readonly config: AgentConfig,  // Changed from protected to public
         protected readonly logDirectory: string
@@ -40,12 +40,24 @@ export abstract class BaseAgent {
             fileWrites: 0,
             operations: []
         };
-        
+
         this.logPath = `${logDirectory}/agents/${this.config.name.toLowerCase().replace(/\s+/g, '_')}.log`;
         this.initializeLogFile();
     }
 
-    abstract processFile(file: ProjectFile, availableTargets: string[]): Promise<ProcessResult>;
+    getName(): string {
+        return this.config.name;
+    }
+
+    getModel(): string {
+        return this.config.model;
+    }
+
+    getState(): AgentState {
+        return { ...this.state };
+    }
+
+    abstract processFile(file: ProjectFile, availableTargets: string[], summarizedOrchestratorHistory: string): Promise<ProcessResult>;
 
     canProcess(): boolean {
         const decision = shouldAllowAnotherTurn({
@@ -54,7 +66,7 @@ export abstract class BaseAgent {
             fileWrites: this.state.fileWrites,
             selfPasses: this.state.consecutiveSelfPasses,
             turnsUsed: this.state.timesProcessed
-        }, 6); // Base limit of 6
+        }, 30); // Base limit of 30 (increased from 6 for extended collaboration)
 
         if (!decision.shouldContinue && this.state.timesProcessed > 0) {
             console.log(`\n⏹️  ${this.config.name}: ${decision.reason}`);

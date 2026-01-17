@@ -1,10 +1,13 @@
 import { Agent } from './agent';
+import { BaseAgent } from './agent-base';
+import { HumanAgent } from './human-agent';
 import { FileUtils } from './utils/file-utils';
 import { AGENT_CONFIGS, API_KEYS, AGENT_WORKFLOW_ORDER } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
-import { SharedMemoryCache } from './memory/shared-cache';
+import { SharedMemoryCache, CacheEntry } from './memory/shared-cache';
 import { validatePath, PathValidationError } from './validation/path-validator';
 import { generateVersion } from './utils/version-utils';
 import { detectTaskCompletion, shouldContinueNextCycle } from './utils/task-completion';
@@ -56,18 +59,23 @@ const SYSTEM_CAPABILITIES = `
 `;
 
 export class Orchestrator {
-    private agents: Map<string, Agent>;
+    private agents: Map<string, BaseAgent>;
     private anthropicClient: Anthropic;
     private openaiClient: OpenAI;
     private cycleCount: number = 0;
-    private cycleCosts: Array<{cycle: string, total: number, logPath: string}> = [];
+    private cycleCosts: Array<{ cycle: string, total: number, logPath: string }> = [];
     private sharedCache: SharedMemoryCache;
     private currentPhase: 'discussion' | 'implementation' = 'discussion';
+    private googleClient: GoogleGenerativeAI;
 
     constructor(private config: OrchestratorConfig) {
         this.anthropicClient = new Anthropic({ apiKey: API_KEYS.anthropic });
         this.openaiClient = new OpenAI({ apiKey: API_KEYS.openai });
-        this.agents = new Map<string, Agent>();
+        if (!API_KEYS.google) {
+            throw new Error('GOOGLE_API_KEY is not set. Please set the GOOGLE_API_KEY environment variable.');
+        }
+        this.googleClient = new GoogleGenerativeAI(API_KEYS.google);
+        this.agents = new Map<string, BaseAgent>();
         this.sharedCache = new SharedMemoryCache();
         console.log('✅ SharedMemoryCache initialized');
         this.initializeAgents();
@@ -77,9 +85,25 @@ export class Orchestrator {
         for (const [key, agentConfig] of Object.entries(AGENT_CONFIGS)) {
             if (key === 'orchestrator') continue;
 
-            const client = agentConfig.model.startsWith('claude')
-                ? this.anthropicClient
-                : this.openaiClient;
+            if (agentConfig.model === 'human') {
+                this.agents.set(
+                    agentConfig.name,
+                    new HumanAgent(agentConfig, this.config.logDirectory)
+                );
+                continue;
+            }
+
+            let client: Anthropic | OpenAI | GoogleGenerativeAI;
+
+            if (agentConfig.model.startsWith('claude')) {
+                client = this.anthropicClient;
+            } else if (agentConfig.model.startsWith('gpt')) {
+                client = this.openaiClient;
+            } else if (agentConfig.model.startsWith('gemini')) {
+                client = this.googleClient;
+            } else {
+                throw new Error(`Unknown model prefix for agent ${agentConfig.name}: ${agentConfig.model}`);
+            }
 
             this.agents.set(
                 agentConfig.name,
@@ -104,6 +128,42 @@ export class Orchestrator {
 
     private getContextPath(): string {
         return `${this.config.logDirectory}/../state/orchestrator-context.json`;
+    }
+
+    private getCachePath(): string {
+        return `${this.config.logDirectory}/../state/shared-cache.json`;
+    }
+
+    async saveSharedCache(): Promise<void> {
+        try {
+            const cachePath = this.getCachePath();
+            const state = this.sharedCache.exportState();
+            await FileUtils.writeFile(cachePath, JSON.stringify(state, null, 2));
+            // console.log(`💾 Saved shared cache (${state.length} entries)`);
+        } catch (error) {
+            console.error(`❌ Failed to save shared cache: ${error}`);
+        }
+    }
+
+    async loadSharedCache(): Promise<void> {
+        try {
+            const cachePath = this.getCachePath();
+            // Check if file exists first
+            try {
+                const fs = await import('fs/promises');
+                await fs.access(cachePath);
+            } catch {
+                console.log('   (No shared cache file found, starting fresh)');
+                return;
+            }
+
+            const content = await FileUtils.readFile(cachePath);
+            const state = JSON.parse(content) as CacheEntry[];
+            this.sharedCache.importState(state);
+            console.log(`📖 Loaded shared cache (${state.length} entries)`);
+        } catch (error) {
+            console.error(`❌ Failed to load shared cache: ${error}`);
+        }
     }
 
     async loadContext(): Promise<OrchestratorContext | null> {
@@ -175,7 +235,8 @@ export class Orchestrator {
             },
             history: [],
             totalCost: 0,
-            humanNotes: ''
+            humanNotes: '',
+            summarizedHistory: '' // Initialize summarizedHistory
         };
 
         await this.saveContext(context);
@@ -206,7 +267,7 @@ export class Orchestrator {
 ╚════════════════════════════════════════════════════════════════╝
 
 PREVIOUS RUN:
-${lastRun ? lastRun.summary : 'This is the first run'}
+${context.summarizedHistory || 'This is the first run'}
 
 CURRENT PHASE: ${context.currentPhase}
 
@@ -215,15 +276,15 @@ ${context.discussionSummary.topic}
 
 KEY DECISIONS SO FAR:
 ${context.discussionSummary.keyDecisions.length > 0
-    ? context.discussionSummary.keyDecisions.map((d, i) => `  ${i + 1}. ${d}`).join('\n')
-    : '  (None yet)'}
+                ? context.discussionSummary.keyDecisions.map((d, i) => `  ${i + 1}. ${d}`).join('\n')
+                : '  (None yet)'}
 
 CONSENSUS STATUS:
 ${Object.entries(context.discussionSummary.consensusSignals).length > 0
-    ? Object.entries(context.discussionSummary.consensusSignals)
-        .map(([agent, signal]) => `  - ${agent}: ${signal}`)
-        .join('\n')
-    : '  (No signals yet)'}
+                ? Object.entries(context.discussionSummary.consensusSignals)
+                    .map(([agent, signal]) => `  - ${agent}: ${signal}`)
+                    .join('\n')
+                : '  (No signals yet)'}
 
 NEXT ACTION: ${context.nextAction.type}
 Reason: ${context.nextAction.reason}
@@ -458,8 +519,18 @@ ${context.humanNotes || '(None)'}
      * Handles file read requests from agents
      */
     private async handleFileRead(fileRead: FileReadRequest, agentName: string): Promise<{ success: boolean; content?: string; error?: string }> {
-        console.log(`\n📖 ${agentName} requesting file read: ${fileRead.filePath}`);
-        console.log(`   Reason: ${fileRead.reason}`);
+        console.log(`\n📖 ${agentName} requesting file read: ${fileRead?.filePath || 'undefined'}`);
+        console.log(`   Reason: ${fileRead?.reason || 'No reason provided'}`);
+
+        if (!fileRead) {
+            return { success: false, error: 'File read request is null/undefined' };
+        }
+
+        if (!fileRead.filePath || typeof fileRead.filePath !== 'string' || fileRead.filePath.trim().length === 0) {
+            const errorMessage = `File read request failed: 'filePath' is invalid. Received: '${fileRead.filePath}'. Please provide a valid string path.`;
+            console.error(`   ❌ ${errorMessage}`);
+            return { success: false, error: errorMessage };
+        }
 
         // Validate path before proceeding
         try {
@@ -522,22 +593,28 @@ ${context.humanNotes || '(None)'}
      *   3. It's the same approach Claude Code uses successfully
      */
     private async handleFileEdit(fileEdit: FileEditRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
-        console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit.filePath}`);
-        console.log(`   Reason: ${fileEdit.reason}`);
+        console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit?.filePath || 'undefined'}`);
+        console.log(`   Reason: ${fileEdit?.reason || 'No reason provided'} `);
+
+        if (!fileEdit || !fileEdit.edits || !Array.isArray(fileEdit.edits)) {
+            const error = `Invalid fileEdit request: 'edits' array is missing or invalid.`;
+            console.error(`   ❌ ${error} `);
+            return { success: false, error };
+        }
         console.log(`   Edits: ${fileEdit.edits.length} change(s)`);
 
         // Validate path before proceeding
         try {
             const validation = validatePath(fileEdit.filePath);
             if (!validation.isValid) {
-                console.error(`   ❌ Path validation failed: ${validation.error}`);
+                console.error(`   ❌ Path validation failed: ${validation.error} `);
                 return { success: false, error: validation.error };
             }
             // Use normalized path for all operations
             fileEdit.filePath = validation.normalizedPath;
         } catch (error) {
             if (error instanceof PathValidationError) {
-                console.error(`   ❌ Security violation: ${error.message}`);
+                console.error(`   ❌ Security violation: ${error.message} `);
                 return { success: false, error: error.message };
             }
             throw error;
@@ -679,19 +756,29 @@ ${context.humanNotes || '(None)'}
         const agreeCount = Object.values(signals).filter(s => s === 'agree').length;
         const buildingCount = Object.values(signals).filter(s => s === 'building').length;
         const disagreeCount = Object.values(signals).filter(s => s === 'disagree').length;
+        const totalSignals = Object.keys(signals).length;
 
         // Strong consensus: 4+ explicit agrees
         if (agreeCount >= 4) return true;
 
         // Moderate consensus: 3 agrees + 1 building (not blocking)
-        if (agreeCount >= 3 && buildingCount >= 1 && signals && Object.keys(signals).length >= 4) {
+        if (agreeCount >= 3 && buildingCount >= 1 && totalSignals >= 4) {
             return true;
         }
 
-        // Soft consensus: 1-2 agrees + 3+ building + no more than 1 disagree
-        // "Building" means agents are working toward the same solution
+        // Soft consensus: 2 agrees + 2+ building + 0 disagrees
+        if (agreeCount >= 2 && buildingCount >= 2 && disagreeCount === 0 && totalSignals >= 4) {
+            return true;
+        }
+
+        // Soft consensus (original): 1-2 agrees + 3+ building + no more than 1 disagree
         if (agreeCount >= 1 && (agreeCount + buildingCount) >= 4 && disagreeCount <= 1) {
             return true;
+        }
+
+        // Debug logging for near-misses
+        if (agreeCount >= 2) {
+            console.log(`   ⏳ Consensus near-miss: ${agreeCount} agree, ${buildingCount} building, ${disagreeCount} disagree`);
         }
 
         return false;
@@ -709,7 +796,7 @@ ${context.humanNotes || '(None)'}
         // from previous tasks polluting the detection
         const recentDecisions = keyDecisions.slice(-3);
 
-        const completionWords = ['complete', 'done', 'finished', 'validated', 'verified', 'shipped', 'ready to ship', 'all tests pass'];
+        const completionWords = ['complete', 'done', 'finished', 'validated', 'verified', 'shipped', 'ready to ship', 'all tests pass', 'implemented'];
         const designWords = ['should build', 'propose', 'suggest we', 'approach:', 'design:', 'architecture:', 'let\'s implement', 'i recommend', 'next feature', 'new feature', 'we should add'];
 
         let completionScore = 0;
@@ -728,8 +815,8 @@ ${context.humanNotes || '(None)'}
         console.log(`   📊 Consensus detection: completion=${completionScore}, design=${designScore} (from ${recentDecisions.length} recent decisions)`);
 
         // Need clear signal - at least 2 more of one type (lowered threshold for fewer decisions)
-        if (completionScore > designScore + 1) return 'completion';
-        if (designScore > completionScore + 1) return 'design';
+        if (completionScore > designScore) return 'completion'; // Lowered threshold to just >
+        if (designScore > completionScore) return 'design'; // Lowered threshold to just >
         return 'unclear';
     }
 
@@ -778,6 +865,12 @@ ${context.humanNotes || '(None)'}
 
         if (entry.changes?.description && entry.changes.description.length > 10) {
             const cleaned = entry.changes.description.trim().split('\n')[0];
+            return cleaned.substring(0, 150);
+        }
+
+        // Fallback: Use reasoning (the "Talk") if nothing else is available
+        if (entry.reasoning && entry.reasoning.length > 10) {
+            const cleaned = entry.reasoning.trim().split('\n')[0];
             return cleaned.substring(0, 150);
         }
 
@@ -961,9 +1054,56 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
 
     // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * Clean up failed compilation files (.failed.ts) to keep workspace tidy.
+     */
+    private async cleanupFailedFiles(): Promise<void> {
+        try {
+            const fs = await import('fs/promises');
+            const path = await import('path');
+
+            const findFailedFiles = async (dir: string): Promise<string[]> => {
+                const results: string[] = [];
+                try {
+                    const entries = await fs.readdir(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dir, entry.name);
+                        if (entry.isDirectory()) {
+                            if (entry.name !== 'node_modules' && entry.name !== '.git') {
+                                results.push(...await findFailedFiles(fullPath));
+                            }
+                        } else if (entry.isFile() && entry.name.includes('.failed.') && entry.name.endsWith('.ts')) {
+                            results.push(fullPath);
+                        }
+                    }
+                } catch (e) {
+                    // Ignore access errors
+                }
+                return results;
+            };
+
+            // Find all .failed.ts files recursively
+            const failedFiles = await findFailedFiles(process.cwd());
+
+            if (failedFiles.length > 0) {
+                console.log(`\n🧹 Cleaning up ${failedFiles.length} failed compilation files...`);
+                for (const file of failedFiles) {
+                    await fs.unlink(file);
+                }
+                console.log(`   ✓ Cleanup complete\n`);
+            }
+        } catch (error) {
+            // Non-critical, just log warning
+            console.warn(`⚠️  Failed file cleanup warning: ${error}`);
+        }
+    }
+
     async runCycles(): Promise<void> {
+        // await this.cleanupFailedFiles();
+
         // Check for existing context
         const context = await this.loadContext();
+        await this.loadSharedCache();
 
         if (context) {
             // Resuming from previous run
@@ -1164,8 +1304,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         context.agentStates = agentStates;
         context.totalCost += totalCost;
         context.lastUpdated = new Date().toISOString();
+        context.summarizedHistory = generateCycleSummary(projectFileHistory || []); // Ensure it's always an array
 
         await this.saveContext(context);
+        await this.saveSharedCache();
         console.log(`\n💾 Saved context for run #${context.runNumber}`);
     }
 
@@ -1232,18 +1374,13 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 completedFeatures.push('✅ SharedMemoryCache - three-bucket LRU cache with tests');
             }
 
-            projectFileContent = `TEAM DISCUSSION: ${completedFeatures.length > 0 ? 'What to Build NEXT' : 'Pick ONE Feature to Implement'}
+            projectFileContent = `SUMMARIZED HISTORY (from previous cycle):
+${context?.summarizedHistory || 'No summarized history available.'}
+
+TEAM DISCUSSION: ${completedFeatures.length > 0 ? 'What to Build NEXT' : 'Pick ONE Feature to Implement'}
 
 You are part of a self-improving AI team building a virtual assistant framework.
 
-CURRENT SYSTEM:
-- Built in TypeScript with Claude/OpenAI API
-- Multi-agent orchestration with cost tracking
-- Context persistence across runs
-- Consensus-based decision making
-- Agent notebooks for cross-run memory
-
-${completedFeatures.length > 0 ? `COMPLETED FEATURES:\n${completedFeatures.map(f => `- ${f}`).join('\n')}\n` : ''}
 YOUR HUMAN USER:
 - Values shipping features over endless discussion
 - Wants you to work autonomously (less human intervention)
@@ -1312,7 +1449,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             throw new Error('No agents available to start cycle (all at processing limit)');
         }
 
-        let currentAgent: Agent | null = null;
+        let currentAgent: BaseAgent | null = null;
 
         if (!this.shouldUseConsensus()) {
             // Use fixed workflow order - start with first agent in order
@@ -1367,6 +1504,8 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 }
             }
 
+
+
             // Get available targets
             let availableTargets = Array.from(this.agents.values())
                 .filter(a => a.canProcess())
@@ -1420,7 +1559,22 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 console.error('❌ Current agent is null before processFile');
                 break;
             }
-            let result = await currentAgent.processFile(projectFile, availableTargets);
+            let result = await currentAgent.processFile(projectFile, availableTargets, context?.summarizedHistory || "");
+
+            // FAIL FAST CHECK
+            if (!result) {
+                console.error(`\n❌ CRITICAL: Agent ${currentAgent.getName()} failed to provide a result (likely API error).`);
+                console.error(`   Terminating process immediately to prevent credit wastage.`);
+                process.exit(1);
+            }
+
+            // VISIBILITY: Print what the agent is thinking and voting
+            console.log(`\n💬 ${currentAgent.getName()}: "${result.reasoning}"`);
+            if (this.shouldUseConsensus() && result.consensus) {
+                const icon = result.consensus === 'agree' ? '✅' : (result.consensus === 'disagree' ? '❌' : '🏗️');
+                console.log(`   ${icon} Vote: ${result.consensus.toUpperCase()}`);
+            }
+
             let fileReadIterations = 0;
             const MAX_FILE_READS_PER_TURN = 5; // Prevent infinite loops
 
@@ -1439,7 +1593,6 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     console.log(`\n📖 File read: ${result.fileRead.filePath} (${lineCount} lines)\n`);
 
                     // Add full content to history (agents need it for editing)
-                    // TODO: Remove file content from history after requesting agent processes it
                     projectFile.history.push({
                         agent: 'Orchestrator',
                         timestamp: new Date().toISOString(),
@@ -1467,7 +1620,26 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 fileReadIterations++;
 
                 // Call agent again with updated history (file content now visible)
-                result = await currentAgent.processFile(projectFile, availableTargets);
+                result = await currentAgent.processFile(projectFile, availableTargets, context?.summarizedHistory || "");
+            }
+
+            // Check if loop terminated due to limit
+            if (fileReadIterations >= MAX_FILE_READS_PER_TURN && result.fileRead) {
+                console.warn(`\n⚠️  Agent ${currentAgent.getName()} reached max file read limit (${MAX_FILE_READS_PER_TURN}). Stopping reads.`);
+                // We proceed with the last result, effectively ignoring the 6th read request
+                // and forcing the agent to move on (or pass to the targetAgent in that result)
+            }
+
+            // Clean up history to prevent huge context bloat
+            // We truncate the large file content from the history after the agent has used it
+            // so that it doesn't pollute the prompt for the NEXT agent (or next cycle)
+            for (const entry of projectFile.history) {
+                if (entry.action === 'file_read_success' && entry.notes.length > 2000) {
+                    const lines = entry.notes.split('\n');
+                    if (lines.length > 50) {
+                        entry.notes = lines.slice(0, 50).join('\n') + `\n\n... (truncated ${lines.length - 50} lines for history) ...`;
+                    }
+                }
             }
 
             // Add final cost from last call
@@ -1585,7 +1757,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             }
 
             // Get next agent (use fixed workflow order if consensus disabled)
-            let nextAgent: Agent | null = null;
+            let nextAgent: BaseAgent | null = null;
 
             // Safety check
             if (!currentAgent) {
@@ -1801,7 +1973,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
 
         narrative += `\n## Cost Analysis\n`;
         Object.entries(costs).forEach(([model, cost]) => {
-            const percentage = total > 0 ? ((cost/total)*100).toFixed(1) : '0.0';
+            const percentage = total > 0 ? ((cost / total) * 100).toFixed(1) : '0.0';
             narrative += `- ${model}: $${cost.toFixed(6)} (${percentage}%)\n`;
         });
         narrative += `- **Total Cost:** $${total.toFixed(6)} USD\n\n`;
@@ -1852,13 +2024,13 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         return output;
     }
 
-    private getRandomAgent(): Agent | null {
+    private getRandomAgent(): BaseAgent | null {
         const agents = Array.from(this.agents.values());
         if (agents.length === 0) return null;
         return agents[Math.floor(Math.random() * agents.length)];
     }
 
-    private getRandomAvailableAgent(availableAgents: string[]): Agent | null {
+    private getRandomAvailableAgent(availableAgents: string[]): BaseAgent | null {
         if (availableAgents.length === 0) return null;
         const agentName = availableAgents[Math.floor(Math.random() * availableAgents.length)];
         const agent = this.agents.get(agentName);
@@ -1873,7 +2045,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
      * Get next agent in the fixed workflow order (when requireConsensus is false).
      * Returns null if workflow is complete.
      */
-    private getNextAgentInWorkflow(currentAgentName: string, availableAgents: string[]): Agent | null {
+    private getNextAgentInWorkflow(currentAgentName: string, availableAgents: string[]): BaseAgent | null {
         const currentIndex = AGENT_WORKFLOW_ORDER.indexOf(currentAgentName);
         if (currentIndex === -1) {
             // Current agent not in workflow order, start from beginning
@@ -1973,7 +2145,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
     }
     private async runSimulationCycle(cyclePath: string, cycleId: string): Promise<void> {
         console.log(`Running simulation cycle ${cycleId}`);
-        
+
         // Initial project file setup
         const projectFile: ProjectFile = {
             content: `// A TypeScript class for managing user preferences
@@ -1989,28 +2161,28 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             currentStage: 'initial_design',
             history: []
         };
-    
+
         // Simulate agents in sequence: UX → Architect → Implementation → Guardian
         const agentSequence = [
-            "UX Visionary", 
-            "System Architect", 
-            "Implementation Specialist", 
+            "UX Visionary",
+            "System Architect",
+            "Implementation Specialist",
             "Guardian"
         ];
-        
+
         await this.logCycle(cyclePath, 'Starting simulation cycle', {
             cycleId,
             initialAgent: agentSequence[0]
         });
-    
+
         let currentContent = projectFile.content;
-        
+
         // Simulate each agent's contribution
         for (const agentName of agentSequence) {
             console.log(`Simulating ${agentName}...`);
-            
+
             const simulatedResult = this.getSimulatedAgentResponse(agentName, currentContent);
-            
+
             // Update project file history
             projectFile.history.push({
                 agent: agentName,
@@ -2019,34 +2191,34 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 notes: simulatedResult.reasoning,
                 changes: simulatedResult.changes
             });
-            
+
             // Apply changes if any
             if (simulatedResult.changes.code) {
                 currentContent = simulatedResult.changes.code;
                 projectFile.content = currentContent;
             }
-            
+
             await this.logCycle(cyclePath, 'Simulated processing step', {
                 agent: agentName,
                 currentState: projectFile,
                 cost: 0 // No actual API call cost
             });
         }
-        
+
         await this.logCycle(cyclePath, 'Simulation cycle complete', {
             finalState: projectFile
         });
-        
+
         // Record a zero-cost cycle
         this.cycleCosts.push({ cycle: cycleId, total: 0, logPath: cyclePath });
     }
-    
+
     private getSimulatedAgentResponse(agentName: string, currentContent: string): {
         changes: Changes;
         reasoning: string;
     } {
         // Predefined responses for simulation
-        const responses: {[key: string]: {changes: Changes, reasoning: string}} = {
+        const responses: { [key: string]: { changes: Changes, reasoning: string } } = {
             "UX Visionary": {
                 changes: {
                     description: "Defined user preferences structure with type safety for theme, notifications, and privacy settings",
@@ -2328,7 +2500,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 reasoning: "The implementation includes good privacy practices with secure defaults (opt-out of data sharing, opt-in to anonymization)"
             }
         };
-        
+
         return responses[agentName] || {
             changes: {
                 description: "No changes made",

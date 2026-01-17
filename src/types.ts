@@ -127,6 +127,7 @@ export interface OrchestratorContext {
         cost: number;
         timestamp: string;
     }>;
+    summarizedHistory: string; // Add this line
     totalCost: number;
     humanNotes: string;
 }

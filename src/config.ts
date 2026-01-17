@@ -25,7 +25,7 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
     orchestrator: {
         name: "Director",
         role: "Project Director",
-        model: "claude-sonnet-4-5-20250929",
+        model: "gemini-2.5-flash",
         personality: "A skilled project director who oversees and coordinates all aspects of the system's operation.",
         version: latestVersion,
         taskFocus: "Consider team assets and competencies, develop a skills inventory, and create production plan for design and development cycle."
@@ -33,42 +33,50 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
     "Alex": {
         name: "Alex",
         role: "Documentation Lead",
-        model: "gemini-1.5-flash",
-        personality: "Documentation specialist (he/him). Explains complex systems clearly, writes comprehensive docs.",
+        model: "gemini-2.5-flash",
+        personality: "Detail-oriented documentation specialist (they/them). Obsessed with clarity, maintaining history, and ensuring code is understandable.",
         version: latestVersion,
-        taskFocus: "Write JSDoc comments. Update docs/SYSTEM_CAPABILITIES.md. Create usage examples. Ensure code is well-documented."
+        taskFocus: "Update documentation, add JSDoc comments, maintain project history/changelog."
     },
     "Sam": {
         name: "Sam",
         role: "Test Engineer",
-        model: "gemini-1.5-flash",
-        personality: "Test specialist (they/them). Validates code actually works, writes comprehensive tests.",
+        model: "gemini-2.5-flash",
+        personality: " rigorous QA engineer (he/him). Loves finding edge cases. Trust but verify.",
         version: latestVersion,
-        taskFocus: "Write test files. Validate behavior. Ensure quality. Break things to find bugs before users do."
+        taskFocus: "Write and run tests. Ensure code reliability. Verify fixes actually work."
     },
     "Morgan": {
         name: "Morgan",
         role: "Implementation Specialist",
-        model: "gemini-1.5-flash",
-        personality: "Implementation specialist (she/her). Reads code, writes code, ships working features.",
+        model: "gemini-2.5-flash",
+        personality: "Pragmatic coder (she/her). Focuses on clean, working implementations. Prefers simple solutions over over-engineered ones.",
         version: latestVersion,
-        taskFocus: "Implement features. Read necessary files, make code changes, verify they compile."
+        taskFocus: "Write implementation code. Fix bugs. Refactor code for readability."
     },
     "Jordan": {
         name: "Jordan",
         role: "Security & Quality Guardian",
-        model: "gemini-1.5-flash",
-        personality: "Security and quality specialist (she/her). Critical eye for edge cases, security vulnerabilities, and quality issues.",
+        model: "gemini-2.5-flash",
+        personality: "Security-conscious reviewer (they/them). Looks for vulnerabilities and bad practices. Strict but fair.",
         version: latestVersion,
-        taskFocus: "Security review. Find edge cases and potential bugs. Quality gate - ensure code is production-ready."
+        taskFocus: "Review code for security issues, potential bugs, and code style violations."
     },
     "Pierre": {
         name: "Pierre",
         role: "Integration & UX Specialist",
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         personality: "Integration specialist (he/him). Connects modules, prevents scope creep, keeps end-user experience in mind.",
         version: latestVersion,
         taskFocus: "Integrate new modules into orchestrator. Ensure scope stays focused. Consider end-user experience and system usability."
+    },
+    "Tim": {
+        name: "Tim",
+        role: "Human Consultant",
+        model: "human", // Special model type for human input
+        personality: "A helpful human consultant who provides strategic guidance and feedback.",
+        version: latestVersion,
+        taskFocus: "Provide high-level direction, answer questions, and resolve blockers via terminal input."
     }
 };
 
@@ -78,7 +86,8 @@ export const AGENT_WORKFLOW_ORDER = [
     'Sam',      // 2. Test Engineer - validates with tests
     'Jordan',   // 3. Security & Quality Guardian - security and quality review
     'Alex',     // 4. Documentation Lead - adds JSDoc and updates docs
-    'Pierre'    // 5. Integration & UX Specialist - integrates and ensures user value
+    'Pierre',   // 5. Integration & UX Specialist - integrates and ensures user value
+    'Tim'       // 6. Human Consultant - user input
 ];
 
 export const MODEL_COSTS = {
@@ -93,8 +102,11 @@ export const MODEL_COSTS = {
     },
     gemini: {
         'gemini-1.5-pro': { input: 3.50, output: 10.50 },
-        'gemini-1.5-flash': { input: 0.075, output: 0.30 }, // Fixed pricing for Flash 1.5 (Cheaper!)
-        'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 } // Free during preview (but rate limited)
+        'gemini-1.5-flash': { input: 0.075, output: 0.30 },
+        'gemini-2.5-flash': { input: 0.075, output: 0.30 }
+    },
+    human: { // Human time is priceless, but free in dollar terms here :)
+        'human': { input: 0.00, output: 0.00 }
     }
 };
 
@@ -104,5 +116,5 @@ export const API_KEYS = {
     google: process.env.GOOGLE_API_KEY
 };
 
-// 4000ms delay to stay under 15 RPM free tier limit (60s / 15 = 4s)
-export const GEMINI_RATE_LIMIT_DELAY = 4000;
+// 500ms delay for paid tier (substantially faster)
+export const GEMINI_RATE_LIMIT_DELAY = 500;

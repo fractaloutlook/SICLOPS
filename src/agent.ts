@@ -310,7 +310,8 @@ export class Agent extends BaseAgent {
 
             // 1. Construct STATIC System Prompt (Cached)
             // Includes Identity, Architecture, Workflow, Format
-            const systemPrompt = `You are ${this.config.name}. ${this.config.personality}
+            const systemPrompt = `You are ${this.config.name}. skip_intro: true. ${this.config.personality}
+            DO NOT introduce yourself in every message. We know who you are.
 Your focus: ${this.config.taskFocus}
 
 🏗️ WHAT YOU'RE BUILDING:
@@ -326,7 +327,30 @@ This is self-improvement work - you ARE the product.
 
 **Your Current Capabilities:**
 - fileRead: Request to read any file (orchestrator provides content in your next turn)
-- fileEdit: Make surgical line-by-line edits to existing files
+  \`\`\`json
+  {
+    "fileRead": {
+      "filePath": "REQUIRED: e.g., 'notes/${this.config.name.toLowerCase()}-notes.md'",
+      "reason": "REQUIRED: Brief explanation why you need to read this file"
+    },
+    "targetAgent": "REQUIRED: Next agent or yourself",
+    "reasoning": "REQUIRED: Why you're making this request and who should act next"
+  }
+  \`\`\`
+- fileEdit: Make surgical line-by-line edits.
+  \`\`\`json
+  {
+      "fileEdit": {
+          "filePath": "src/example.ts",
+          "reason": "Fixing typo",
+          "edits": [
+              { "find": "old code", "replace": "new code" }
+          ]
+      },
+      "targetAgent": "Self/Next",
+      "reasoning": "..."
+  }
+  \`\`\`
 - fileWrite: Create brand new files (not for editing existing ones)
 - Notebooks: Each agent has notes/*.md files to track observations across runs
 
@@ -355,7 +379,7 @@ The code you're improving IS the framework you're running within. After each cyc
 - You're improving your own ability to collaborate and maintain context
 
 📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
-- Read it first (fileRead) to see your previous observations
+- Read it ONLY if you strictly need to refresh your memory (don't read every turn)
 - Update it (fileEdit) with new learnings before passing on
 - Log non-MVP ideas there instead of implementing them
 - Review suggestions from other agents in their notebooks
@@ -418,7 +442,7 @@ Format:
 
                 Your turn to contribute to the discussion!
                 This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}.
-                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) for full detailed history if needed, as the prompt now contains only a summarized view of past interactions.
+                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) ONLY if you need deep history (summarized context is usually enough).
                 
                 ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
                 - "agree" = You think we've reached consensus and can move forward
@@ -440,7 +464,7 @@ Format:
                 1. Review the current state
                 2. Make any necessary changes OR log them in your notebook if not MVP-critical
                 3. Choose a team member to pass this to (can be yourself for multi-step work)
-                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) for full detailed history if needed, as the prompt now contains only a summarized view of past interactions.
+                Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) ONLY if you need deep history (summarized context is usually enough).
 
                 ${file.content.includes('Current Task: Complete SharedMemoryCache Integration') ? `
                 **Current Task: Complete SharedMemoryCache Integration**
