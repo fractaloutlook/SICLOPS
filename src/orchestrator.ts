@@ -166,15 +166,17 @@ export class Orchestrator {
         }
     }
 
-    async loadContext(): Promise<OrchestratorContext | null> {
+    async loadContext(silent: boolean = true): Promise<OrchestratorContext | null> {
         try {
             const contextPath = this.getContextPath();
             const content = await FileUtils.readFile(contextPath);
             const context = JSON.parse(content) as OrchestratorContext;
-            console.log(`📖 Loaded context from run #${context.runNumber}`);
+            if (!silent) {
+                console.log(`📖 Loaded context from run #${context.runNumber}`);
+            }
 
             // Load cached decisions into SharedMemoryCache
-            if (context.discussionSummary?.keyDecisions && context.discussionSummary.keyDecisions.length > 0) {
+            if (!silent && context.discussionSummary?.keyDecisions && context.discussionSummary.keyDecisions.length > 0) {
                 console.log(`\n📋 Loading ${context.discussionSummary.keyDecisions.length} previous decisions:`);
                 for (const decision of context.discussionSummary.keyDecisions) {
                     // Show first 120 chars of each decision for human readability
@@ -832,6 +834,9 @@ ${context.humanNotes || '(None)'}
 
         // Find entries from agents who agreed
         for (const entry of projectFileHistory) {
+            // Filter out system messages and orchestrator errors
+            if (entry.agent === 'Orchestrator' || entry.agent === 'System') continue;
+
             if (agentsWhoAgreed.includes(entry.agent)) {
                 // Extract decision from their notes or changes.description
                 const decision = this.extractDecisionFromEntry(entry);
@@ -843,8 +848,10 @@ ${context.humanNotes || '(None)'}
 
         // If no one agreed, extract from last few entries anyway (partial progress)
         if (decisions.length === 0 && projectFileHistory.length > 0) {
-            const recentEntries = projectFileHistory.slice(-3);
+            const recentEntries = projectFileHistory.slice(-5); // Look slightly further back
             for (const entry of recentEntries) {
+                if (entry.agent === 'Orchestrator' || entry.agent === 'System') continue;
+
                 const decision = this.extractDecisionFromEntry(entry);
                 if (decision) {
                     decisions.push(`${entry.agent} (building): ${decision}`);
@@ -1102,7 +1109,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         // await this.cleanupFailedFiles();
 
         // Check for existing context
-        const context = await this.loadContext();
+        const context = await this.loadContext(false); // Explicitly show on startup
         await this.loadSharedCache();
 
         if (context) {
@@ -1520,8 +1527,12 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             const turnInfo: string[] = [];
             for (const [name, agent] of this.agents.entries()) {
                 const state = agent.getState();
-                const remaining = 3 - state.timesProcessed;  // Assuming max 3 turns
-                const status = remaining > 0 ? `${remaining}/3 turns left` : 'exhausted (next round)';
+                // Get the actual limit for this agent (base + bonuses)
+                // Since we don't publicize the exact limit, we'll just show "turns taken" vs "active"
+                // Or better: just show "Active" or "Exhausted" to avoid confusion
+
+                const canProcess = agent.canProcess();
+                const status = canProcess ? `Active (${state.timesProcessed} turns used)` : 'Exhausted (next round)';
                 turnInfo.push(`  - ${name}: ${status}`);
             }
             const turnInfoStr = this.shouldUseConsensus()
@@ -1555,8 +1566,13 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
 
             // Inner loop: Keep calling same agent while they request file reads
             // This allows agents to read multiple files and then act on them in ONE turn
+            if (currentAgent && !currentAgent.canProcess()) {
+                console.log(`\n🔄 Current agent ${currentAgent.getName()} is exhausted. Picking new target...`);
+                currentAgent = this.getRandomAvailableAgent(availableTargets);
+            }
+
             if (!currentAgent) {
-                console.error('❌ Current agent is null before processFile');
+                console.log('\n🛑 No available agents left. Cycle finishing.');
                 break;
             }
             let result = await currentAgent.processFile(projectFile, availableTargets, context?.summarizedHistory || "");
@@ -1631,9 +1647,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             }
 
             // Clean up history to prevent huge context bloat
-            // We truncate the large file content from the history after the agent has used it
-            // so that it doesn't pollute the prompt for the NEXT agent (or next cycle)
-            for (const entry of projectFile.history) {
+            // We truncate large file content from OLDER history entries
+            // BUT we preserve the very last entry so the next agent (or self-pass) can see what just happened
+            for (let i = 0; i < projectFile.history.length - 1; i++) {
+                const entry = projectFile.history[i];
                 if (entry.action === 'file_read_success' && entry.notes.length > 2000) {
                     const lines = entry.notes.split('\n');
                     if (lines.length > 50) {
@@ -1646,8 +1663,12 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             cycleCost.total += result.cost;
 
             if (!result.accepted) {
+                // If agent refused (e.g. limit reached), pick someone else who CAN work
                 const newTarget = this.getRandomAvailableAgent(availableTargets);
-                if (!newTarget) break;
+                if (!newTarget) {
+                    console.log('\n🛑 No other agents available to take over. Ending cycle.');
+                    break;
+                }
                 currentAgent = newTarget;
                 continue;
             }
@@ -1667,8 +1688,9 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 changes: result.changes || { description: '', location: '' }
             });
 
-            // Apply changes if any
-            if (result.changes) {
+            // Apply changes if any (only in non-implementation stages)
+            // In implementation mode, we want to PRESERVE the instruction prompt in projectFile.content
+            if (result.changes && projectFile.currentStage !== 'implementation') {
                 projectFile.content = result.changes.code || projectFile.content;
             }
 
@@ -2031,8 +2053,16 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
     }
 
     private getRandomAvailableAgent(availableAgents: string[]): BaseAgent | null {
-        if (availableAgents.length === 0) return null;
-        const agentName = availableAgents[Math.floor(Math.random() * availableAgents.length)];
+        // Filter out agents who have reached their limit
+        const activeCandidates = availableAgents.filter(name => {
+            if (name === 'Orchestrator') return true;
+            const agent = this.agents.get(name);
+            return agent && agent.canProcess();
+        });
+
+        if (activeCandidates.length === 0) return null;
+
+        const agentName = activeCandidates[Math.floor(Math.random() * activeCandidates.length)];
         const agent = this.agents.get(agentName);
         if (!agent) {
             console.error(`Agent not found: ${agentName}. Available agents: ${Array.from(this.agents.keys()).join(', ')}`);

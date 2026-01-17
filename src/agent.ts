@@ -1,5 +1,6 @@
 import { BaseAgent, AgentState } from './agent-base';
 import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequest, FileEditRequest } from './types';
+import { AGENT_CONFIGS } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai'; // Import Google Generative AI
@@ -174,102 +175,34 @@ export class Agent extends BaseAgent {
             // Extract JSON from the code block
             response = jsonBlockMatch[1].trim();
         } else {
-            // Remove any markdown code blocks that might be in explanations
-            response = response.replace(/```typescript[\s\S]*?```/g, '') // Remove TypeScript blocks
-                .replace(/```javascript[\s\S]*?```/g, '') // Remove JavaScript blocks
-                .replace(/```[\s\S]*?```/g, ''); // Remove other code blocks
+            // Remove any markdown code blocks
+            response = response.replace(/```[\s\S]*?```/g, '');
         }
 
         // Clean up any leading/trailing whitespace
         response = response.trim();
 
-        // Detect if response looks truncated (starts with { but doesn't end with })
+        // Detect if response looks truncated
         const startsWithBrace = response.startsWith('{');
         const endsWithBrace = response.trimEnd().endsWith('}');
 
         if (startsWithBrace && !endsWithBrace) {
-            // Response is likely truncated - try to salvage it
-            console.warn(`[Agent:${this.config.name}] Response appears truncated (${response.length} chars). Attempting recovery...`);
-
-            // Try to close the JSON by counting braces/quotes
+            console.warn(`[Agent:${this.config.name}] Response appears truncated. Attempting recovery...`);
             response = this.attemptJsonRecovery(response);
         }
 
-        // Try to find JSON object boundaries and extract just the JSON
-        // Look for first { that's followed by a quote (JSON property name)
-        let firstBrace = -1;
-        for (let i = 0; i < response.length - 1; i++) {
-            if (response[i] === '{') {
-                // Check if next non-whitespace char is a quote (JSON property)
-                let j = i + 1;
-                while (j < response.length && /\s/.test(response[j])) j++;
-                if (j < response.length && response[j] === '"') {
-                    firstBrace = i;
-                    break;
-                }
-            }
+        // Final Robust Extraction: Find first '{' and last '}'
+        const firstBrace = response.indexOf('{');
+        const lastBrace = response.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+            return response.substring(firstBrace, lastBrace + 1);
         }
 
-        if (firstBrace !== -1) {
-            let braceCount = 0;
-            let inString = false;
-            let escapeNext = false;
-            let jsonEnd = -1;
-
-            for (let i = firstBrace; i < response.length; i++) {
-                const char = response[i];
-
-                if (escapeNext) {
-                    escapeNext = false;
-                    continue;
-                }
-
-                if (char === '\\') {
-                    escapeNext = true;
-                    continue;
-                }
-
-                if (char === '"') {
-                    inString = !inString;
-                    continue;
-                }
-
-                if (!inString) {
-                    if (char === '{') braceCount++;
-                    if (char === '}') {
-                        braceCount--;
-                        if (braceCount === 0) {
-                            jsonEnd = i + 1;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (jsonEnd !== -1) {
-                response = response.substring(firstBrace, jsonEnd);
-            }
-        }
-
-        // Fix common JSON issues: escape unescaped newlines and tabs in string values
-        // This is a rough fix - find strings and escape control characters in them
-        try {
-            // Try to parse first - if it works, return as-is
-            JSON.parse(response);
-            return response;
-        } catch (e) {
-            // If parsing fails, try to fix control characters
-            // Replace literal newlines and tabs within quoted strings
-            response = response.replace(/"([^"]*?)"/g, (match, content) => {
-                const escaped = content
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\t/g, '\\t');
-                return `"${escaped}"`;
-            });
-            return response;
-        }
+        return response;
     }
+
+
 
     async processFile(
         file: ProjectFile,
@@ -308,11 +241,20 @@ export class Agent extends BaseAgent {
             const isConversation = file.content.includes('TEAM DISCUSSION');
             const requireConsensus = file.content.includes('Reach consensus');
 
+            // Generate Team Roster for dynamic context
+            const teamRoster = Object.values(AGENT_CONFIGS)
+                .filter(c => c.name !== 'Director') // Hide Director to avoid agents trying to pass to it
+                .map(c => `- ${c.name} (${c.role}): ${c.taskFocus}`)
+                .join('\n');
+
             // 1. Construct STATIC System Prompt (Cached)
             // Includes Identity, Architecture, Workflow, Format
             const systemPrompt = `You are ${this.config.name}. skip_intro: true. ${this.config.personality}
             DO NOT introduce yourself in every message. We know who you are.
 Your focus: ${this.config.taskFocus}
+
+👥 TEAM ROSTER (Who is who):
+${teamRoster}
 
 🏗️ WHAT YOU'RE BUILDING:
 You're working on YOUR OWN multi-agent framework called SICLOPS (Self-Improving Collective).
@@ -378,6 +320,26 @@ The code you're improving IS the framework you're running within. After each cyc
 - All 5 agents are Claude Sonnet 4.5 models (~$0.15-0.20 per cycle)
 - You're improving your own ability to collaborate and maintain context
 
+🤝 COLLABORATION RULES:
+- TALK TO EACH OTHER: Refer to previous agents by name (e.g., "Alex, I agree with your point about X...")
+- BUILD ON IDEAS: React to what was just said. Don't validiate your own existence.
+- NO INTROS: STOP saying "As the [Role]...". Start DIRECTLY with your thought.
+
+RESPONSE FORMAT:
+- Start immediately with your analysis or action.
+- NEVEr preface with "As [Name]" or "As the [Role]".
+
+✏️ FILE EDITING RULES (CRITICAL):
+- ALWAYS read the file first (fileRead).
+- COPY-PASTE EXACTLY: The "find" string must match the file content character-for-character, including whitespace/indentation.
+- If "find" fails (Pattern not found), it means you guessed the content. DO NOT GUESS.
+- Ensure the pattern is UNIQUE in the file. If it appears twice, the edit will fail. Include more context lines if needed.
+
+⚠️ TURN CONSISTENCY:
+- EVERY TURN MUST PRODUCE ACTION (code change, note update, or explicit forward pass).
+- DO NOT just read files and pass.
+- IF you read a file, DO SOMETHING with that information.
+
 📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
 - Read it ONLY if you strictly need to refresh your memory (don't read every turn)
 - Update it (fileEdit) with new learnings before passing on
@@ -420,21 +382,31 @@ IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSO
 Format:
 {
     "changes": {
-        "description": "Brief description of changes made",
-        "code": "REQUIRED: Complete TypeScript implementation code that can be directly used. Escape all newlines as \\\\n",
-        "location": "REQUIRED: Specific file/class/method where this code belongs"
+        "description": "Optional: Brief description of changes made",
+        "location": "Optional: Specific file/class/method where this code belongs"
     },
+    "fileEdit": { ... }, // PREFERRED: Use for existing files
+    "fileWrite": { ... }, // Use ONLY for new files
     "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
     "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
     "notes": "Additional context or considerations",
     "returnForFix": false, // OPTIONAL: Set to true to pass BACKWARDS for immediate bug fix (use sparingly!)
     ${requireConsensus ? '"consensus": "agree | building | disagree"' : ''}
-}`;
+}
+Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite for actual code changes.`;
 
             // 2. Construct DYNAMIC User Prompt (Uncached - changes every turn)
+            const recentHistory = file.history.slice(-10).map(entry => {
+                const notesSnippet = entry.notes?.length > 500 ? entry.notes.substring(0, 500) + "..." : entry.notes;
+                return `[${entry.agent}] ${entry.action}: ${notesSnippet}`;
+            }).join('\n\n');
+
             const userPrompt = isConversation ?
                 `DISCUSSION CONTEXT:
                 ${file.content}
+
+                RECENT HISTORY:
+                ${recentHistory}
 
                 ${conversationHistoryForPrompt}
 
@@ -455,6 +427,9 @@ Format:
                 :
                 `Current file/Context:
                 ${file.content}
+
+                RECENT HISTORY:
+                ${recentHistory}
 
                 ${conversationHistoryForPrompt}
 
@@ -603,6 +578,14 @@ Format:
                     cost = this.calculateGeminiCost(tokens.input, tokens.output);
                     response = JSON.parse(this.cleanJsonResponse(textContent)) as ApiResponse;
 
+                    // POST-PROCESSING: Strip repetitive intros
+                    if (response.reasoning) {
+                        response.reasoning = response.reasoning.replace(/^(As|Being|Since) (the |a )?[\w\s-]+,?\s*/i, '');
+                        if (response.reasoning.length > 0) {
+                            response.reasoning = response.reasoning.charAt(0).toUpperCase() + response.reasoning.slice(1);
+                        }
+                    }
+
                     // Throttling for Free Tier (15 RPM limit)
                     if (GEMINI_RATE_LIMIT_DELAY > 0) {
                         console.log(`   ⏳ Throttling Gemini request for ${GEMINI_RATE_LIMIT_DELAY}ms (Free Tier limit)...`);
@@ -616,10 +599,23 @@ Format:
                 }
             }
 
-            await this.updateState('process_file', tokens.input, tokens.output, cost);
+            // If this turn produced a fileRead, we don't increment the turn counter yet (happens in orchestrator loop)
+            const isReadTurn = !!response.fileRead;
+            await this.updateState('process_file', tokens.input, tokens.output, cost, !isReadTurn);
 
             // Validate target agent
             let targetAgent = response.targetAgent;
+
+            // Normalize "Self" and "Director" aliases
+            if (targetAgent && (
+                targetAgent.toLowerCase() === 'self' ||
+                targetAgent.toLowerCase() === 'myself' ||
+                targetAgent === 'Self/Next'
+            )) {
+                targetAgent = this.config.name;
+            } else if (targetAgent === 'Director') {
+                targetAgent = 'Orchestrator';
+            }
 
             // Allow self-passing up to 3 times for multi-step work
             if (targetAgent === this.config.name) {

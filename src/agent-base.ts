@@ -59,6 +59,8 @@ export abstract class BaseAgent {
 
     abstract processFile(file: ProjectFile, availableTargets: string[], summarizedOrchestratorHistory: string): Promise<ProcessResult>;
 
+    private hasLoggedExhaustion: boolean = false;
+
     canProcess(): boolean {
         const decision = shouldAllowAnotherTurn({
             fileReads: this.state.fileReads,
@@ -68,7 +70,7 @@ export abstract class BaseAgent {
             turnsUsed: this.state.timesProcessed
         }, 30); // Base limit of 30 (increased from 6 for extended collaboration)
 
-        if (!decision.shouldContinue && this.state.timesProcessed > 0) {
+        if (!decision.shouldContinue && this.state.timesProcessed > 0 && !this.hasLoggedExhaustion) {
             console.log(`\n⏹️  ${this.config.name}: ${decision.reason}`);
             console.log(`   ${getProductivitySummary({
                 fileReads: this.state.fileReads,
@@ -77,6 +79,7 @@ export abstract class BaseAgent {
                 selfPasses: this.state.consecutiveSelfPasses,
                 turnsUsed: this.state.timesProcessed
             })}\n`);
+            this.hasLoggedExhaustion = true;
         }
 
         return decision.shouldContinue;
@@ -93,6 +96,7 @@ export abstract class BaseAgent {
         this.state.fileReads = 0;
         this.state.fileEdits = 0;
         this.state.fileWrites = 0;
+        this.hasLoggedExhaustion = false;
     }
 
     trackFileRead(): void {
@@ -140,9 +144,11 @@ export abstract class BaseAgent {
         console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${consoleMessage}`);
     }
 
-    protected async updateState(operation: string, inputTokens: number, outputTokens: number, cost: number): Promise<void> {
+    protected async updateState(operation: string, inputTokens: number, outputTokens: number, cost: number, incrementTurn: boolean = true): Promise<void> {
         const timestamp = new Date();
-        this.state.timesProcessed++;
+        if (incrementTurn) {
+            this.state.timesProcessed++;
+        }
         this.state.lastProcessedAt = timestamp;
         this.state.totalCost += cost;
         this.state.totalTokensUsed += (inputTokens + outputTokens);

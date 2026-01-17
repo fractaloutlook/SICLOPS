@@ -24,6 +24,10 @@
 
 ## Current Cycle Notes
 
+### Proposed Feature & Rationale (Discussion Phase)
+**Proposed Feature:** Fix/improve existing features - Ensure SharedMemoryCache tests are running and passing.
+**Reasoning:** The SharedMemoryCache is a foundational component for agent collaboration and context sharing. As an Integration Specialist, I prioritize stable and reliable building blocks. If its tests aren't running, we can't trust its functionality. Ensuring its stability now will prevent integration headaches and potential data consistency issues later, aligning with building a robust foundation in an MVP fashion. This directly helps the system 'maintain context across restarts' and 'coordinate better as a team' by ensuring the shared memory actually works as intended.
+
 **Task Analysis: Testing Infrastructure**
 
 From approved design history, I see:
