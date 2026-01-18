@@ -352,6 +352,14 @@ ${context.humanNotes || '(None)'}
             status: 'pending'
         };
 
+        // Safety Guard: Prevent accidental overwrites of existing files via fileWrite
+        // Agents should use fileEdit for existing files.
+        if (await this.fileExists(fileWrite.filePath)) {
+            const error = `Safety Violation: File '${fileWrite.filePath}' already exists. Use 'fileEdit' for modifications, or delete the file first if you intended to replace it entirely. 'fileWrite' is strictly for brand NEW files.`;
+            console.error(`   ❌ ${error}`);
+            return { success: false, error };
+        }
+
         try {
             // Step 1: Write to temporary location for validation
             const tempPath = `${fileWrite.filePath}.tmp`;
