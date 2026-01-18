@@ -355,7 +355,11 @@ ${context.humanNotes || '(None)'}
         // Safety Guard: Prevent accidental overwrites of existing files via fileWrite
         // Agents should use fileEdit for existing files.
         if (await this.fileExists(fileWrite.filePath)) {
-            const error = `Safety Violation: File '${fileWrite.filePath}' already exists. Use 'fileEdit' for modifications, or delete the file first if you intended to replace it entirely. 'fileWrite' is strictly for brand NEW files.`;
+            const error = `Safety Violation: File '${fileWrite.filePath}' already exists. 
+If you intend to MODIFY this file: Use 'fileEdit' with pattern matching.
+If you need to see the CURRENT CONTENT: Use 'fileRead' first.
+If you intended to REPLACE the entire file: Delete it first using a shell command (if permitted) or use 'fileEdit' to replace the content.
+'fileWrite' is strictly for BRAND NEW files that do not currently exist in the filesystem.`;
             console.error(`   ❌ ${error}`);
             return { success: false, error };
         }
@@ -596,20 +600,31 @@ ${context.humanNotes || '(None)'}
             return { success: false, error: error.message };
         }
 
-        // 🛠️ REDUNDANT READ CACHE: Check if we already have the full file in history
+        // 🛠️ SMART READ CACHE: Prevent redundant reads but allow re-reads after failures or handoffs
         if (projectFile && projectFile.history) {
-            const cachedEntry = [...projectFile.history].reverse().find(e =>
+            const history = [...projectFile.history].reverse();
+            const lastRead = history.find(e =>
                 e.action === 'file_read_success' &&
-                e.changes?.location === fileRead.filePath &&
-                e.notes.includes('lines):')
+                e.changes?.location === fileRead.filePath
             );
 
-            if (cachedEntry) {
-                console.log(`   💎 Redundant read blocked for ${fileRead.filePath}`);
-                return {
-                    success: false,
-                    error: `You already have the latest content for ${fileRead.filePath} in your history. Do not re-read the same file multiple times unless it was changed by another agent or is critical.`
-                };
+            if (lastRead) {
+                // Check for failures or edits since last read
+                const index = projectFile.history.indexOf(lastRead);
+                const updatesSinceRead = projectFile.history.slice(index + 1).some(e =>
+                    e.changes?.location === fileRead.filePath &&
+                    (e.action.includes('failed') || e.action.includes('success') && e.action !== 'file_read_success')
+                );
+
+                const isSameAgent = lastRead.agent === agentName;
+
+                if (isSameAgent && !updatesSinceRead) {
+                    console.log(`   💎 Redundant read blocked for ${fileRead.filePath} (Agent: ${agentName})`);
+                    return {
+                        success: false,
+                        error: `Redundant Read: You already have the latest content for ${fileRead.filePath} in your history. If your 'fileEdit' failed, please check the error message provided by the Orchestrator. You only need to re-read if the file was changed by another agent or if you explicitly need to refresh your context.`
+                    };
+                }
             }
         }
 

@@ -1,7 +1,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
+/**
+ * Custom error class for path validation failures.
+ */
 export class PathValidationError extends Error {
+  /**
+   * Creates an instance of PathValidationError.
+   * @param message - The error message.
+   * @param path - Optional: The path that caused the validation error.
+   */
   constructor(message: string, public path?: string) {
     super(message);
     this.name = 'PathValidationError';
@@ -9,19 +17,16 @@ export class PathValidationError extends Error {
 }
 
 /**
- * Interface for a path validator (Agent-proposed for Code Validation Pipeline).
- */
-export interface IPathValidator {
-  validatePath(filePath: string): boolean;
-  isExistingFile(filePath: string): boolean;
-  isExistingDirectory(dirPath: string): boolean;
-}
-
-/**
  * Static PathValidator class (System-required for Orchestrator stability).
  */
 export class PathValidator {
+  /**
+   * Defines the top-level directories where file operations are permitted.
+   */
   private static ALLOWED_ROOT_DIRECTORIES = ['src', 'notes', 'docs', 'tests', 'data'];
+  /**
+   * Defines the file extensions that are allowed for file operations.
+   */
   private static ALLOWED_EXTENSIONS = ['.ts', '.md', '.json', '.js'];
 
   // Critical system files are protected from accidental modification, 
@@ -31,7 +36,11 @@ export class PathValidator {
   ];
 
   /**
-   * Validates a given file path against a set of rules for file operations.
+   * Validates a given file path against a set of security and structural rules.
+   * This ensures that file operations are confined to expected areas and prevent malicious access.
+   * @param filePath - The absolute or relative path to validate.
+   * @returns `true` if the path is valid.
+   * @throws {PathValidationError} if the path fails any validation rule.
    */
   public static validatePath(filePath: string): boolean {
     if (!filePath) {
@@ -44,9 +53,6 @@ export class PathValidator {
 
     // 1. Check if the path is within allowed root directories
     if (!this.ALLOWED_ROOT_DIRECTORIES.includes(rootDir)) {
-      if (filePath.startsWith('..') || rootDir === '..') {
-        throw new PathValidationError(`Path validation failed: Path traversal attempt detected in path "${filePath}".`, filePath);
-      }
       throw new PathValidationError(`Path must be in allowed directories. Path "${filePath}" with root directory "${rootDir}" is not within an allowed root directory. Allowed: ${this.ALLOWED_ROOT_DIRECTORIES.join(', ')}.`, filePath);
     }
 
@@ -77,6 +83,11 @@ export class PathValidator {
     return true;
   }
 
+  /**
+   * Checks if a given path corresponds to an existing file and passes validation rules.
+   * @param filePath - The path to check.
+   * @returns `true` if the path is a valid and existing file, `false` otherwise.
+   */
   public static isExistingFile(filePath: string): boolean {
     try {
       this.validatePath(filePath);
@@ -87,6 +98,11 @@ export class PathValidator {
     }
   }
 
+  /**
+   * Checks if a given path corresponds to an existing directory and passes validation rules.
+   * @param dirPath - The path to check.
+   * @returns `true` if the path is a valid and existing directory, `false` otherwise.
+   */
   public static isExistingDirectory(dirPath: string): boolean {
     try {
       this.validatePath(dirPath);
@@ -98,37 +114,13 @@ export class PathValidator {
   }
 }
 
-/**
- * A path validator implementation that follows the IPathValidator interface.
- */
-export class ProjectPathValidator implements IPathValidator {
-  private projectRoot: string;
-
-  constructor(projectRoot: string) {
-    this.projectRoot = path.resolve(projectRoot);
-  }
-
-  public validatePath(filePath: string): boolean {
-    // Fallback to static validation for core rules
-    PathValidator.validatePath(filePath);
-
-    const absolutePath = path.resolve(filePath);
-    if (!absolutePath.startsWith(this.projectRoot)) {
-      throw new PathValidationError(`Path '${filePath}' is outside the project root.`, filePath);
-    }
-    return true;
-  }
-
-  public isExistingFile(filePath: string): boolean {
-    return PathValidator.isExistingFile(filePath);
-  }
-
-  public isExistingDirectory(dirPath: string): boolean {
-    return PathValidator.isExistingDirectory(dirPath);
-  }
-}
-
 // Keep the function export that Jordan/Morgan might expect
+/**
+ * Helper function to validate a file path and return a structured result.
+ * This function wraps `PathValidator.validatePath` to provide a non-throwing interface.
+ * @param filePath - The path to validate.
+ * @returns An object indicating `isValid`, an optional `error` message, and the `normalizedPath`.
+ */
 export function validatePath(filePath: string): { isValid: boolean; error?: string; normalizedPath: string } {
   try {
     PathValidator.validatePath(filePath);
