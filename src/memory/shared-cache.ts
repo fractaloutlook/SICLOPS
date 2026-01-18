@@ -10,29 +10,52 @@
  * - Aggressive logging from day one
  */
 
+/**
+ * Defines the classification types for cache entries.
+ * - 'transient': Short-lived, easily evicted data.
+ * - 'decision': Data related to agent decisions, mid-term retention.
+ * - 'sensitive': Highly important data, protected from auto-eviction.
+ */
 export type BucketType = 'transient' | 'decision' | 'sensitive';
 
 export interface CacheEntry {
+  /** Unique identifier for the cached item. */
   key: string;
+  /** The actual content being cached. */
   value: string;
+  /** The classification bucket this entry belongs to. */
   bucket: BucketType;
+  /** Estimated token count of the entry's value. */
   tokens: number;
-  reason?: string; // Documentation only - never used in eviction logic
-  timestamp: number; // For LRU tracking
-  lastAccessed: number; // For LRU tracking
-  ttl: number; // Time to live in milliseconds
+  /** Optional documentation for why this item is cached. Not used in eviction logic. */
+  reason?: string;
+  /** Timestamp when the entry was first stored (Unix milliseconds). Used for TTL. */
+  timestamp: number;
+  /** Timestamp when the entry was last accessed (Unix milliseconds). Used for LRU eviction. */
+  lastAccessed: number;
+  /** Time to live in milliseconds. After this duration, the entry is considered expired. */
+  ttl: number;
 }
 
 export interface CacheStats {
+  /** The total number of entries currently in the cache. */
   totalEntries: number;
+  /** The sum of estimated tokens across all entries in the cache. */
   totalTokens: number;
+  /** Statistics broken down by each bucket type. */
   bucketStats: {
+    /** Statistics for the 'transient' bucket. */
     transient: { entries: number; tokens: number };
+    /** Statistics for the 'decision' bucket. */
     decision: { entries: number; tokens: number };
+    /** Statistics for the 'sensitive' bucket. */
     sensitive: { entries: number; tokens: number };
   };
+  /** Total number of evictions (manual or automatic) that have occurred. */
   evictionCount: number;
+  /** Total number of successful retrievals (cache hits). */
   hitCount: number;
+  /** Total number of failed retrievals (cache misses, including expired entries). */
   missCount: number;
 }
 

@@ -38,7 +38,7 @@ export class HumanAgent extends BaseAgent {
         let response: any;
         try {
             response = JSON.parse(userInput);
-        } catch (e) {
+        } catch (e: any) {
             // Treat as simple text feedback
             response = {
                 targetAgent: availableTargets[0], // Default to first available

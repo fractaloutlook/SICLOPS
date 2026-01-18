@@ -15,6 +15,8 @@ interface ApiResponse {
         location?: string;
     };
     fileRead?: FileReadRequest;
+    lineRead?: any;
+    fileGrep?: any;
     fileEdit?: FileEditRequest;
     fileWrite?: FileWriteRequest;
     targetAgent: string
@@ -335,8 +337,10 @@ RESPONSE FORMAT:
 - If "find" fails (Pattern not found), it means you guessed the content. DO NOT GUESS.
 - Ensure the pattern is UNIQUE in the file. If it appears twice, the edit will fail. Include more context lines if needed.
 
-⚠️ TURN CONSISTENCY:
+⚠️ TURN CONSISTENCY & ERROR AWARENESS:
 - EVERY TURN MUST PRODUCE ACTION (code change, note update, or explicit forward pass).
+- IF your previous action failed (check RECENT HISTORY for "failed" actions), you MUST acknowledge the error in your reasoning and focus THIS turn on fixing it.
+- DO NOT just report "Success" if you see an Orchestrator error for your own previous action!
 - DO NOT just read files and pass.
 - IF you read a file, DO SOMETHING with that information.
 
@@ -365,6 +369,7 @@ DO NOT just read files and pass without doing something productive!
 
 **FORBIDDEN:**
 ❌ Reading files → passing → reading same files again → passing (INFINITE LOOP!)
+❌ Requesting a fileRead for a file that is ALREADY present in your RECENT HISTORY
 ❌ Self-passing more than once without making file changes
 ❌ Reading notebooks but not updating them with new information
 ❌ Saying "waiting for X" when YOU could do the work yourself
@@ -377,6 +382,8 @@ DO NOT just read files and pass without doing something productive!
 - Max 3 self-passes if you need multiple edit/write cycles
 
 CRITICAL: Keep responses CONCISE - focus on ONE specific thing. Use file operations (fileRead, fileEdit, fileWrite) instead of embedding large code blocks.
+💡 TIP: When using fileEdit, include 2-3 lines of surrounding code in your "find" string to make it unique and robust against whitespace issues.
+💡 TIP: If a file was successfully edited by a team member, you MUST call fileRead on it again to see the updated content and line numbers before making your own edits!
 You MUST respond with ONLY a valid JSON object.
 IMPORTANT: Ensure all newlines in code are properly escaped as \\n for valid JSON.
 Format:
@@ -387,6 +394,8 @@ Format:
     },
     "fileEdit": { ... }, // PREFERRED: Use for existing files
     "fileWrite": { ... }, // Use ONLY for new files
+    "lineRead": { "action": "line_read", "filePath": "src/utils.ts", "startLine": 1, "endLine": 50, "reason": "..." },
+    "fileGrep": { "action": "file_grep", "filePath": "src/utils.ts", "pattern": "functionName", "reason": "..." },
     "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
     "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
     "notes": "Additional context or considerations",
@@ -397,8 +406,15 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
 
             // 2. Construct DYNAMIC User Prompt (Uncached - changes every turn)
             const recentHistory = file.history.slice(-10).map(entry => {
-                const notesSnippet = entry.notes?.length > 500 ? entry.notes.substring(0, 500) + "..." : entry.notes;
-                return `[${entry.agent}] ${entry.action}: ${notesSnippet}`;
+                // Actions that contain code/content we must preserve
+                const isFileOp = entry.action.includes('file_read') || entry.action.includes('file_edit') || entry.action.includes('file_write');
+                const isDecision = entry.action.includes('review_and_modify') || entry.action.includes('discussion');
+
+                // Truncate reasoning/notes but preserve file content as much as the orchestrator allowed
+                const limit = isFileOp ? 200000 : (isDecision ? 5000 : 500);
+                const snippet = entry.notes?.length > limit ? entry.notes.substring(0, limit) + "..." : entry.notes;
+
+                return `[${entry.agent}] ${entry.action}: ${snippet}`;
             }).join('\n\n');
 
             const userPrompt = isConversation ?
@@ -527,7 +543,7 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 const cleanedText = this.cleanJsonResponse(textContent.text);
                 try {
                     response = JSON.parse(cleanedText) as ApiResponse;
-                } catch (parseError) {
+                } catch (parseError: any) {
                     await this.log('JSON parse error - raw response:', {
                         rawResponse: textContent.text,
                         cleanedResponse: cleanedText,
@@ -649,6 +665,8 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 notes: response.notes,
                 consensus: response.consensus,
                 fileRead: response.fileRead,
+                lineRead: response.lineRead,
+                fileGrep: response.fileGrep,
                 fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite
             });
@@ -663,6 +681,8 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 reasoning: response.reasoning,
                 changes: response.changes,
                 fileRead: response.fileRead,
+                lineRead: response.lineRead,
+                fileGrep: response.fileGrep,
                 fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite,
                 notes: response.notes,
@@ -672,7 +692,7 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 tokens
             };
 
-        } catch (error) {
+        } catch (error: any) {
             await this.log('Error processing file', {
                 error: error instanceof Error ? error.message : 'Unknown error',
                 stage: file.currentStage

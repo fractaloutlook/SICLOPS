@@ -51,7 +51,7 @@ async function main() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         console.log('All cycles completed successfully');
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error running cycles:', error);
     }
 }

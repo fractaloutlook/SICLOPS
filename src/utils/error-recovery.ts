@@ -44,7 +44,7 @@ export async function retryWithBackoff<T>(
     for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
         try {
             return await operation();
-        } catch (error) {
+        } catch (error: any) {
             lastError = error instanceof Error ? error : new Error(String(error));
 
             let delay = calculateDelay(attempt, config);
@@ -119,7 +119,7 @@ export async function retryIfRetryable<T>(
 ): Promise<T> {
     try {
         return await retryWithBackoff(operation, config, operationName);
-    } catch (error) {
+    } catch (error: any) {
         if (error instanceof Error && !isRetryableError(error)) {
             // Fatal error - don't retry
             console.log(`\n❌ Fatal error in ${operationName}: ${error.message}`);
@@ -161,7 +161,7 @@ export class CircuitBreaker {
             // Success - reset failure count
             this.failureCount = 0;
             return result;
-        } catch (error) {
+        } catch (error: any) {
             this.failureCount++;
             this.lastFailureTime = Date.now();
 

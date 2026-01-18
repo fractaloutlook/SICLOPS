@@ -84,7 +84,7 @@ Auto-committed by SICLOPS multi-agent system`;
             commitHash: hash.trim(),
             message: `Committed as ${hash.trim()}`
         };
-    } catch (error) {
+    } catch (error: any) {
         return {
             success: false,
             message: `Commit failed: ${error instanceof Error ? error.message : String(error)}`

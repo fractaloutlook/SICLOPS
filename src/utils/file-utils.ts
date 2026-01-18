@@ -24,7 +24,7 @@ export class FileUtils {
 
     static async appendToCsv(csvPath: string, records: any[]): Promise<void> {
         await this.ensureDirectoryExists(path.dirname(csvPath));
-        
+
         const csvWriter = createObjectCsvWriter({
             path: csvPath,
             header: [
@@ -51,7 +51,7 @@ export class FileUtils {
                 .split('\n')
                 .filter(line => line.trim())
                 .map(line => JSON.parse(line));
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error reading log file ${path}:`, error);
             return [];
         }
@@ -61,11 +61,11 @@ export class FileUtils {
         await this.ensureDirectoryExists(path.substring(0, path.lastIndexOf('/')));
         await fs.writeFile(path, content, 'utf-8');
     }
-    
+
     public static async readDir(dir: string): Promise<string[]> {
         try {
             return await fs.readdir(dir);
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error reading directory ${dir}:`, error);
             return [];
         }

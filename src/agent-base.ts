@@ -12,6 +12,7 @@ export interface AgentState {
     fileReads: number;
     fileEdits: number;
     fileWrites: number;
+    productiveTurns: number; // For adaptive limits
     operations: {
         timestamp: Date;
         operation: string;
@@ -38,6 +39,7 @@ export abstract class BaseAgent {
             fileReads: 0,
             fileEdits: 0,
             fileWrites: 0,
+            productiveTurns: 0,
             operations: []
         };
 
@@ -67,7 +69,7 @@ export abstract class BaseAgent {
             fileEdits: this.state.fileEdits,
             fileWrites: this.state.fileWrites,
             selfPasses: this.state.consecutiveSelfPasses,
-            turnsUsed: this.state.timesProcessed
+            turnsUsed: this.state.productiveTurns
         }, 30); // Base limit of 30 (increased from 6 for extended collaboration)
 
         if (!decision.shouldContinue && this.state.timesProcessed > 0 && !this.hasLoggedExhaustion) {
@@ -77,7 +79,7 @@ export abstract class BaseAgent {
                 fileEdits: this.state.fileEdits,
                 fileWrites: this.state.fileWrites,
                 selfPasses: this.state.consecutiveSelfPasses,
-                turnsUsed: this.state.timesProcessed
+                turnsUsed: this.state.productiveTurns
             })}\n`);
             this.hasLoggedExhaustion = true;
         }
@@ -85,13 +87,15 @@ export abstract class BaseAgent {
         return decision.shouldContinue;
     }
 
-    restoreState(savedState: { timesProcessed: number; totalCost: number }): void {
+    restoreState(savedState: { timesProcessed: number; productiveTurns?: number; totalCost: number }): void {
         this.state.timesProcessed = savedState.timesProcessed;
+        this.state.productiveTurns = savedState.productiveTurns || savedState.timesProcessed;
         this.state.totalCost = savedState.totalCost;
     }
 
     resetTurnsForNewCycle(): void {
         this.state.timesProcessed = 0;
+        this.state.productiveTurns = 0;
         this.state.consecutiveSelfPasses = 0;
         this.state.fileReads = 0;
         this.state.fileEdits = 0;
@@ -126,7 +130,7 @@ export abstract class BaseAgent {
         // More informative console output
         let consoleMessage = message;
         if (message === 'State updated' && data) {
-            consoleMessage = `Turn ${data.timesProcessed}/6 | Cost $${data.totalCost.toFixed(4)}`;
+            consoleMessage = `Call ${data.timesProcessed} (Turn ${data.productiveTurns}) | Cost $${data.totalCost.toFixed(4)}`;
         } else if (message === 'Processed file' && data) {
             // First print the summary of what they said
             const summary = this.extractMiniSummary(data);
@@ -144,10 +148,11 @@ export abstract class BaseAgent {
         console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${consoleMessage}`);
     }
 
-    protected async updateState(operation: string, inputTokens: number, outputTokens: number, cost: number, incrementTurn: boolean = true): Promise<void> {
+    protected async updateState(operation: string, inputTokens: number, outputTokens: number, cost: number, incrementProductiveTurn: boolean = true): Promise<void> {
         const timestamp = new Date();
-        if (incrementTurn) {
-            this.state.timesProcessed++;
+        this.state.timesProcessed++; // Always increment API call count
+        if (incrementProductiveTurn) {
+            this.state.productiveTurns++;
         }
         this.state.lastProcessedAt = timestamp;
         this.state.totalCost += cost;
@@ -162,6 +167,7 @@ export abstract class BaseAgent {
 
         await this.log('State updated', {
             timesProcessed: this.state.timesProcessed,
+            productiveTurns: this.state.productiveTurns,
             totalCost: this.state.totalCost,
             operation
         });

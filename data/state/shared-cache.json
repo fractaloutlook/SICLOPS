@@ -3098,5 +3098,255 @@
     "timestamp": 1768624423218,
     "lastAccessed": 1768624423218,
     "ttl": 86400000
+  },
+  {
+    "key": "decision_1768625369118_0.807792978404255",
+    "value": "Sam: Morgan, your `fileEdit` failed because the 'find' pattern was not found in `src/orchestrator.ts`. As a rigorous QA engineer, I must point out that the",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768625369118,
+    "lastAccessed": 1768625369118,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768625369118_0.36045497070051447",
+    "value": "Morgan: Sam is correct; my previous `fileEdit` failed due to an incorrect `find` pattern, and I appreciate the correction. I need to refocus on the current di",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768625369118,
+    "lastAccessed": 1768625369118,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768625369118_0.7713646106225007",
+    "value": "Jordan: I am agreeing with Morgan's proposal to fix existing features, specifically the SharedMemoryCache tests, as it's critical for code quality and securit",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768625369118,
+    "lastAccessed": 1768625369118,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768625369118_0.6760608200802276",
+    "value": "Sam: Morgan and Jordan have both rightly highlighted the critical need to fix existing features, specifically the SharedMemoryCache tests. From a rigorous ",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768625369118,
+    "lastAccessed": 1768625369118,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768625369118_0.4652546790615508",
+    "value": "Alex: I agree with the team's direction to fix existing features, specifically the SharedMemoryCache tests. This is critical for reliable documentation. Sam",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768625369118,
+    "lastAccessed": 1768625369118,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768626265256_0.28356260928443366",
+    "value": "Sam: Morgan and Jordan have both rightly highlighted the critical need to fix existing features, specifically the SharedMemoryCache tests. From a rigorous ",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768626265256,
+    "lastAccessed": 1768626265256,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768626265259_0.0170829574689344",
+    "value": "Alex: I agree with the team's direction to fix existing features, specifically the SharedMemoryCache tests. This is critical for reliable documentation. Sam",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768626265259,
+    "lastAccessed": 1768626265259,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768626265259_0.5424378840635933",
+    "value": "Pierre (building): Before I can integrate any new modules or ensure a smooth end-user experience, the underlying testing infrastructure needs to be functional. The repea",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768626265259,
+    "lastAccessed": 1768626265259,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768626265259_0.5749719281223138",
+    "value": "Pierre (building): Previous attempts to fix the SharedMemoryCache tests were blocked by 'Pattern not found' errors in `src/orchestrator.ts`. I've refined the `fileEdit` ",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768626265259,
+    "lastAccessed": 1768626265259,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768626265260_0.823145245823532",
+    "value": "Tim (building): Are we putting in Jest stuff for this sharedmemorycache testing? cool.",
+    "bucket": "decision",
+    "tokens": 22,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768626265260,
+    "lastAccessed": 1768626265260,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628050946_0.2751783923013371",
+    "value": "Pierre (building): Before I can integrate any new modules or ensure a smooth end-user experience, the underlying testing infrastructure needs to be functional. The repea",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628050946,
+    "lastAccessed": 1768628050946,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628050946_0.9721188672002115",
+    "value": "Pierre (building): Previous attempts to fix the SharedMemoryCache tests were blocked by 'Pattern not found' errors in `src/orchestrator.ts`. I've refined the `fileEdit` ",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628050946,
+    "lastAccessed": 1768628050946,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628050946_0.2076197320276456",
+    "value": "Tim (building): Are we putting in Jest stuff for this sharedmemorycache testing? cool.",
+    "bucket": "decision",
+    "tokens": 22,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628050946,
+    "lastAccessed": 1768628050946,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628050946_0.6707115649660345",
+    "value": "Pierre (building): I've updated my notebook to reflect the team's current understanding of the 'Testing Infrastructure' scope, acknowledging Alex's recent documentation ",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628050946,
+    "lastAccessed": 1768628050946,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628050946_0.6903594947334062",
+    "value": "Tim (building): Awesome work.",
+    "bucket": "decision",
+    "tokens": 8,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628050946,
+    "lastAccessed": 1768628050946,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628674089_0.0354470098894033",
+    "value": "Tim (building): Are we putting in Jest stuff for this sharedmemorycache testing? cool.",
+    "bucket": "decision",
+    "tokens": 22,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628674089,
+    "lastAccessed": 1768628674089,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628674090_0.21795482113492204",
+    "value": "Pierre (building): I've updated my notebook to reflect the team's current understanding of the 'Testing Infrastructure' scope, acknowledging Alex's recent documentation ",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628674090,
+    "lastAccessed": 1768628674090,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628674090_0.359251665502772",
+    "value": "Tim (building): Awesome work.",
+    "bucket": "decision",
+    "tokens": 8,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628674090,
+    "lastAccessed": 1768628674090,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628674090_0.4384571444289085",
+    "value": "Pierre (building): My previous attempt to update my notebook failed due to a pattern mismatch. I have now corrected my notebook entry to accurately reflect the current s",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628674090,
+    "lastAccessed": 1768628674090,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768628674090_0.911587567338817",
+    "value": "Tim (building): wow. are you all finished already with ShareMemoryCache integration? What are you going to use it for?",
+    "bucket": "decision",
+    "tokens": 30,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768628674090,
+    "lastAccessed": 1768628674090,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768629878255_0.33160436896585854",
+    "value": "Jordan: The team has agreed on the 'Code validation pipeline'. My notes confirm the blocker is the missing `src/validation/path-validator.ts` module. Morgan, ",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768629878255,
+    "lastAccessed": 1768629878255,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768629878255_0.585108333910511",
+    "value": "Jordan: My previous attempts to update the notes failed due to incorrect 'find' patterns. I have now carefully constructed a new fileEdit to accurately reflec",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768629878255,
+    "lastAccessed": 1768629878255,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768629878255_0.9960490762329939",
+    "value": "Jordan: My previous attempts to update my notes failed due to precise pattern matching issues. I have now carefully corrected the 'find' pattern to accurately",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768629878255,
+    "lastAccessed": 1768629878255,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768629878255_0.6735287640930117",
+    "value": "Jordan: There is a critical discrepancy between Morgan's stated intent (review `path-validator.ts` for 'Code Validation Pipeline') and the content of her succ",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768629878255,
+    "lastAccessed": 1768629878255,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768629878255_0.07989886724153972",
+    "value": "Jordan: I have reviewed the 'Code Validation Pipeline' proposal in Morgan's notes and find it to be a sound MVP from a security and quality standpoint. I am p",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768629878255,
+    "lastAccessed": 1768629878255,
+    "ttl": 86400000
   }
 ]

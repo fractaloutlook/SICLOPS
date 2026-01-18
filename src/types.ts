@@ -48,6 +48,8 @@ export interface ProcessResult {
     accepted: boolean;
     changes?: Changes;  // Optional for conversation mode
     fileRead?: FileReadRequest;  // Agent can request to read a file
+    lineRead?: LineReadRequest;  // Agent can request to read specific lines
+    fileGrep?: FileGrepRequest;  // Agent can request to search for pattern
     fileEdit?: FileEditRequest;  // Agent can request surgical edits to existing file
     fileWrite?: FileWriteRequest;  // Agent can request to write entire file (new files only)
     reasoning: string;
@@ -84,6 +86,21 @@ export interface FileWriteRequest {
     action: 'write_file';
     filePath: string;
     content: string;
+    reason: string;
+}
+
+export interface LineReadRequest {
+    action: 'line_read';
+    filePath: string;
+    startLine: number;
+    endLine: number;
+    reason: string;
+}
+
+export interface FileGrepRequest {
+    action: 'file_grep';
+    filePath: string;
+    pattern: string;
     reason: string;
 }
 
