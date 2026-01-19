@@ -52,17 +52,18 @@ export class PathValidator {
     }
 
     const normalizedPath = path.normalize(filePath).replace(/\\/g, '/');
+
+    // 1. Prevent directory traversal attacks
+    if (normalizedPath.includes('..')) {
+      throw new PathValidationError(`Path validation failed: Path traversal attempt detected in path "${filePath}".`, filePath);
+    }
+
     const pathParts = normalizedPath.split('/');
     const rootDir = pathParts[0];
 
-    // 1. Check if the path is within allowed root directories
+    // 2. Check if the path is within allowed root directories
     if (!this.ALLOWED_ROOT_DIRECTORIES.includes(rootDir)) {
       throw new PathValidationError(`Path must be in allowed directories. Path "${filePath}" with root directory "${rootDir}" is not within an allowed root directory. Allowed: ${this.ALLOWED_ROOT_DIRECTORIES.join(', ')}.`, filePath);
-    }
-
-    // 2. Prevent directory traversal attacks
-    if (normalizedPath.includes('..')) {
-      throw new PathValidationError(`Path validation failed: Path traversal attempt detected in path "${filePath}".`, filePath);
     }
 
     // 3. Prevent modification of extremely sensitive files (config, etc.)
@@ -80,7 +81,8 @@ export class PathValidator {
     }
 
     // 5. Block sensitive patterns
-    if (filePath.includes('.env') || filePath.includes('node_modules') || filePath.includes('.git')) {
+    if (filePath.includes('.env') || filePath.includes('node_modules') || filePath.includes('.git') ||
+      filePath.includes('package.json') || filePath.includes('tsconfig.json')) {
       throw new PathValidationError(`Access to sensitive file or directory "${filePath}" is disallowed.`, filePath);
     }
 
@@ -132,4 +134,20 @@ export function validatePath(filePath: string): { isValid: boolean; error?: stri
   } catch (error: any) {
     return { isValid: false, error: error.message, normalizedPath: path.normalize(filePath).replace(/\\/g, '/') };
   }
+}
+
+/**
+ * Validates the size of a file's content against a limit (in KB).
+ */
+export function validateFileSize(content: string, limitKB: number = 100): boolean {
+  const sizeBytes = Buffer.byteLength(content, 'utf8');
+  const sizeKB = sizeBytes / 1024;
+  return sizeKB <= limitKB;
+}
+
+/**
+ * Validates the number of operations in a cycle against a limit.
+ */
+export function validateOperationCount(count: number, limit: number = 5): boolean {
+  return count < limit;
 }

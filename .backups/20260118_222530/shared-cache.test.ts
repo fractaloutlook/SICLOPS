@@ -1,5 +1,8 @@
 import { SharedMemoryCache, BucketType, CacheEntry } from './shared-cache'; // Sam: Verifying Jest types are now recognized and tests can run.
 
+/**
+ * Test suite for the SharedMemoryCache class.
+ */
 describe('SharedMemoryCache', () => {
   let cache: SharedMemoryCache;
   const DEFAULT_MAX_TOKENS = 50000;

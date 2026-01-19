@@ -61,6 +61,15 @@ export abstract class BaseAgent {
 
     abstract processFile(file: ProjectFile, availableTargets: string[], summarizedOrchestratorHistory: string): Promise<ProcessResult>;
 
+    /**
+     * Request approval for a shell command. 
+     * Default for bot agents is to return true (auto-approve), 
+     * but HumanAgent will override this to ask the user.
+     */
+    async requestCommandApproval(command: string, reason: string): Promise<boolean> {
+        return true;
+    }
+
     private hasLoggedExhaustion: boolean = false;
 
     canProcess(): boolean {

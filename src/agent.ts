@@ -264,8 +264,9 @@ You're working on YOUR OWN multi-agent framework called SICLOPS (Self-Improving 
 This is self-improvement work - you ARE the product.
 
 **Your System Architecture:**
-- 5 specialized agents (you and 4 colleagues) working in a fixed workflow sequence
+- 5 specialized agents (you and 4 colleagues) working in a workflow sequence (delegation supported)
 - Orchestrator (src/orchestrator.ts) coordinates your turns and handles file operations
+- Use targetAgent="Orchestrator" if you want to end the team's turn early
 - Each agent gets up to 30 turns per cycle (extended for collaboration)
 - You can self-pass up to 3 times for multi-step work within a cycle
 - All code changes are validated with TypeScript compilation before being saved
@@ -409,7 +410,7 @@ Format:
     "runCommand": { "action": "run_command", "command": "npm install ...", "reason": "..." },
     "lineRead": { "action": "line_read", "filePath": "src/utils.ts", "startLine": 1, "endLine": 50, "reason": "..." },
     "fileGrep": { "action": "file_grep", "filePath": "src/utils.ts", "pattern": "functionName", "reason": "..." },
-    "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
+    "targetAgent": "REQUIRED: Name of team member to receive this turn next. Use 'Orchestrator' to end the round early.",
     "reasoning": "REQUIRED: Brief explanation of why you made these changes and why you chose this target agent",
     "notes": "Additional context or considerations",
     "returnForFix": false, // OPTIONAL: Set to true to pass BACKWARDS for immediate bug fix (use sparingly!)

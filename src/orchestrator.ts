@@ -26,6 +26,8 @@ interface OrchestratorConfig {
     conversationMode?: boolean;  // For team discussions
     requireConsensus?: boolean;  // If false, agents just pass in sequence instead of debating to consensus
     humanComment?: string;  // Human comment passed from command line
+    noHuman?: boolean; // If true, disables the human agent and autonomous safety checks
+    passiveHuman?: boolean; // If true, human exists for HITL but is skipped in workflow
 }
 
 // System capabilities summary injected into all agent prompts
@@ -41,7 +43,9 @@ const SYSTEM_CAPABILITIES = `
 - All edits auto-validated with TypeScript
 
 **Workflow:**
-- Normal: Morgan → Sam → Jordan → Alex → Pierre
+- Normal: Morgan → Sam → Jordan → Alex → Pierre (unless delegated)
+- Delegation: Set targetAgent to any team member to pass directly (works in all modes)
+- End Round: Set targetAgent="Orchestrator" to conclude your team's turn early
 - Self-pass: Up to 3 times for multi-step work
 - Return for fix: Set returnForFix=true to pass backwards when you find bugs
 
@@ -84,10 +88,21 @@ export class Orchestrator {
     }
 
     private initializeAgents(): void {
+        if (this.config.noHuman) {
+            console.log('🤖 AUTONOMOUS MODE: Human agent disabled by -noHuman flag.');
+            console.log('   Warning: Command safety checks will be auto-approved.');
+        } else if (this.config.passiveHuman) {
+            console.log('🛡️  PASSIVE HUMAN MODE: Human agent enabled for security checks only.');
+            console.log('   (You will only be prompted if an agent wants to run a shell command)');
+        }
+
         for (const [key, agentConfig] of Object.entries(AGENT_CONFIGS)) {
             if (key === 'orchestrator') continue;
 
             if (agentConfig.model === 'human') {
+                if (this.config.noHuman) {
+                    continue; // Skip initializing human agent
+                }
                 this.agents.set(
                     agentConfig.name,
                     new HumanAgent(agentConfig, this.config.logDirectory)
@@ -724,6 +739,16 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
     private async handleRunCommand(commandRequest: CommandRequest, agentName: string): Promise<{ success: boolean; output?: string; error?: string }> {
         console.log(`\n⌨️  ${agentName} requesting command execution: ${commandRequest.command}`);
         console.log(`   Reason: ${commandRequest.reason}`);
+
+        // Human-in-the-loop: If a human agent is in the team, ask for approval
+        const humanAgent = Array.from(this.agents.values()).find(a => a instanceof HumanAgent);
+        if (humanAgent && agentName !== humanAgent.getName()) {
+            const approved = await humanAgent.requestCommandApproval(commandRequest.command, commandRequest.reason || 'No reason provided');
+            if (!approved) {
+                console.log(`   ⛔ Command rejected by human.`);
+                return { success: false, error: 'User rejected this command execution.' };
+            }
+        }
 
         try {
             const { exec } = await import('child_process');
@@ -2085,10 +2110,26 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
                     }
                 }
+                // Check if agent passed to Orchestrator to end round early
+                else if (result.targetAgent === 'Orchestrator') {
+                    console.log(`\n🎯 ${currentAgent.getName()} passed to Orchestrator - ending round early.`);
+                    break;
+                }
                 // Check if agent is self-passing for multi-step work
                 else if (result.targetAgent === currentAgent.getName()) {
                     nextAgent = currentAgent;
                     console.log(`🔄 ${currentAgent.getName()} self-passing for multi-step work`);
+                }
+                // Check if agent explicitly delegated to someone else
+                else if (result.targetAgent && result.targetAgent !== currentAgent.getName() && this.agents.has(result.targetAgent)) {
+                    const requestedAgent: BaseAgent = this.agents.get(result.targetAgent)!;
+                    if (requestedAgent.canProcess()) {
+                        nextAgent = requestedAgent;
+                        console.log(`🎯 ${currentAgent.getName()} explicitly delegated to ${result.targetAgent}`);
+                    } else {
+                        console.warn(`⚠️  Target agent ${result.targetAgent} cannot process, continuing workflow normally`);
+                        nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                    }
                 } else {
                     // Fixed workflow order when passing to others
                     nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
@@ -2365,6 +2406,9 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         if (currentIndex === -1) {
             // Current agent not in workflow order, start from beginning
             for (const agentName of AGENT_WORKFLOW_ORDER) {
+                // If passive mode is on, skip Tim (Human) in the rotation
+                if (this.config.passiveHuman && agentName === 'Tim') continue;
+
                 if (availableAgents.includes(agentName)) {
                     const agent = this.agents.get(agentName);
                     if (agent && agent.canProcess()) {
@@ -2378,6 +2422,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         // Find next agent in workflow order who can still process
         for (let i = currentIndex + 1; i < AGENT_WORKFLOW_ORDER.length; i++) {
             const agentName = AGENT_WORKFLOW_ORDER[i];
+
+            // If passive mode is on, skip Tim (Human) in the rotation
+            if (this.config.passiveHuman && agentName === 'Tim') continue;
+
             if (availableAgents.includes(agentName)) {
                 const agent = this.agents.get(agentName);
                 if (agent && agent.canProcess()) {

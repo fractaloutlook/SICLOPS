@@ -8,6 +8,8 @@ async function main() {
     const args = process.argv.slice(2);
     let humanComment: string | undefined;
     let maxCycles = 1; // Default to 1 cycle
+    let noHuman = false;
+    let passiveHuman = false;
 
     for (let i = 0; i < args.length; i++) {
         if ((args[i] === '-com' || args[i] === '--comment') && args[i + 1]) {
@@ -20,6 +22,10 @@ async function main() {
                 process.exit(1);
             }
             i++; // Skip next arg since we used it
+        } else if (args[i] === '-noHuman' || args[i] === '--no-human' || args[i] === '-nh') {
+            noHuman = true;
+        } else if (args[i] === '-noTim' || args[i] === '-passive' || args[i] === '-nt') {
+            passiveHuman = true;
         }
     }
 
@@ -34,7 +40,9 @@ async function main() {
         simulationMode: false, // Running with real API calls
         conversationMode: true, // Team discussion mode
         requireConsensus: false, // Disabled - consensus causes turn limit deadlocks
-        humanComment // Pass human comment from command line
+        humanComment, // Pass human comment from command line
+        noHuman, // Disable human agent entirely
+        passiveHuman // Passive mode: Human exists for HITL but gets no turn
     });
 
     try {

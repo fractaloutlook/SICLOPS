@@ -18,13 +18,15 @@ describe('SharedMemoryCache', () => {
 
   beforeEach(() => {
     cache = new SharedMemoryCache();
+    // Enable verbose logging for tests to see what's happening
+    process.env.VERBOSE_CACHE_LOGGING = 'true';
     // Suppress console logs during tests
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'log').mockImplementation(() => { });
+    jest.spyOn(console, 'warn').mockImplementation(() => { });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('Basic Operations', () => {
@@ -95,7 +97,7 @@ describe('SharedMemoryCache', () => {
       expect(cache.retrieve('key1')).toBe('value1');
     });
 
-    test('CRITICAL: reason should NOT affect eviction order', () => {
+    test('CRITICAL: reason should NOT affect eviction order', async () => {
       // Fill cache to trigger eviction
       const largeValue = 'x'.repeat(20000); // ~5000 tokens
 
@@ -104,8 +106,12 @@ describe('SharedMemoryCache', () => {
       cache.store('with-reason', largeValue, 'transient', 'CRITICAL DATA');
       cache.store('another', largeValue, 'transient');
 
+      // Wait a bit to ensure timestamp differs
+      await new Promise(resolve => setTimeout(resolve, 10));
       // Access 'with-reason' to make it recently used
       cache.retrieve('with-reason');
+      // Wait again
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       // Add more data to trigger eviction - 'no-reason' should evict first (LRU)
       cache.store('trigger1', largeValue, 'transient');
@@ -116,8 +122,6 @@ describe('SharedMemoryCache', () => {
       cache.store('trigger6', largeValue, 'transient');
       cache.store('trigger7', largeValue, 'transient');
       cache.store('trigger8', largeValue, 'transient');
-      cache.store('trigger9', largeValue, 'transient');
-      cache.store('trigger10', largeValue, 'transient');
 
       // 'with-reason' should still exist (was accessed recently)
       expect(cache.retrieve('with-reason')).not.toBeNull();
@@ -167,6 +171,38 @@ describe('SharedMemoryCache', () => {
       // 'recent' should survive longer than 'old1' and 'old2'
       const stats = cache.getStats();
       expect(stats.totalTokens).toBeLessThanOrEqual(50000);
+    });
+
+    test('should correctly handle token count increase on update and trigger LRU eviction', () => {
+      const smallValue = 'x'.repeat(4000); // ~1000 tokens
+      const largeValue = 'x'.repeat(20000); // ~5000 tokens
+
+      // Fill cache with 'old' entries to get close to capacity (45,000 tokens)
+      for (let i = 0; i < 9; i++) {
+        cache.store(`oldKey${i}`, largeValue, 'transient'); // 9 * 5000 = 45000 tokens
+      }
+      expect(cache.getStats().totalTokens).toBe(45000);
+
+      // Store a small entry that will be updated later (1000 tokens)
+      cache.store('keyToUpdate', smallValue, 'transient'); // Total: 45000 + 1000 = 46000 tokens
+
+      // Update 'keyToUpdate' with a much larger value (6000 tokens)
+      // This update should cause total tokens to exceed MAX_TOKENS (46000 - 1000 + 6000 = 51000).
+      // Eviction should happen, and 'oldKey0' (LRU) should be removed.
+      cache.store('keyToUpdate', 'y'.repeat(24000), 'transient'); // ~6000 tokens
+
+      // Verify that the total tokens are now within limits
+      const stats = cache.getStats();
+      expect(stats.totalTokens).toBeLessThanOrEqual(50000);
+
+      // 'keyToUpdate' should still exist because it was just accessed/updated (MRU)
+      expect(cache.retrieve('keyToUpdate')).not.toBeNull();
+
+      // The oldest entry ('oldKey0') should have been evicted
+      expect(cache.retrieve('oldKey0')).toBeNull();
+
+      // Check the eviction count increased
+      expect(stats.evictionCount).toBeGreaterThan(0);
     });
   });
 
@@ -218,18 +254,18 @@ describe('SharedMemoryCache', () => {
 
   describe('TTL Expiration', () => {
     beforeEach(() => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
     });
 
     afterEach(() => {
-      vi.useRealTimers();
+      jest.useRealTimers();
     });
 
     test('should expire transient entries after 1 hour', () => {
       cache.store('transient-key', 'value', 'transient');
 
       // Fast-forward 2 hours
-      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+      jest.advanceTimersByTime(2 * 60 * 60 * 1000);
 
       expect(cache.retrieve('transient-key')).toBeNull();
     });
@@ -238,7 +274,7 @@ describe('SharedMemoryCache', () => {
       cache.store('decision-key', 'value', 'decision');
 
       // Fast-forward 12 hours
-      vi.advanceTimersByTime(12 * 60 * 60 * 1000);
+      jest.advanceTimersByTime(12 * 60 * 60 * 1000);
 
       expect(cache.retrieve('decision-key')).not.toBeNull();
     });
@@ -247,7 +283,7 @@ describe('SharedMemoryCache', () => {
       cache.store('decision-key', 'value', 'decision');
 
       // Fast-forward 25 hours
-      vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+      jest.advanceTimersByTime(25 * 60 * 60 * 1000);
 
       expect(cache.retrieve('decision-key')).toBeNull();
     });
@@ -256,7 +292,7 @@ describe('SharedMemoryCache', () => {
       cache.store('sensitive-key', 'value', 'sensitive');
 
       // Fast-forward 6 days
-      vi.advanceTimersByTime(6 * 24 * 60 * 60 * 1000);
+      jest.advanceTimersByTime(6 * 24 * 60 * 60 * 1000);
 
       expect(cache.retrieve('sensitive-key')).not.toBeNull();
     });

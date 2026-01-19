@@ -20,6 +20,25 @@ export class HumanAgent extends BaseAgent {
         return { ...this.state };
     }
 
+    async requestCommandApproval(command: string, reason: string): Promise<boolean> {
+        console.log('\n🛡️  SECURITY CHECK: Agent requesting command execution');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`Command:  ${command}`);
+        console.log(`Reason:   ${reason}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        const answer = await this.promptUser('Approve this command? [Y/n]: ');
+        const approved = answer.toLowerCase() !== 'n';
+
+        if (approved) {
+            console.log('✅ Command approved\n');
+        } else {
+            console.log('❌ Command rejected\n');
+        }
+
+        return approved;
+    }
+
     async processFile(
         file: ProjectFile,
         availableTargets: string[],
@@ -28,7 +47,8 @@ export class HumanAgent extends BaseAgent {
         console.log(`\n\n👤 IT'S YOUR TURN, ${this.config.name.toUpperCase()}!`);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('Current context has been logged to history.');
-        console.log('Use JSON format if you want to perform file operations, or just type text to give detailed feedback.');
+        console.log('Use JSON format for file operations, or just type text to give feedback.');
+        console.log('USE @AgentName (e.g., @Morgan: check this) to explicitly delegate to a specific agent.');
         console.log('Available targets:', availableTargets.join(', '));
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
@@ -39,17 +59,36 @@ export class HumanAgent extends BaseAgent {
         try {
             response = JSON.parse(userInput);
         } catch (e: any) {
-            // Treat as simple text feedback
-            response = {
-                targetAgent: availableTargets[0], // Default to first available
-                reasoning: userInput,
-                changes: {
-                    description: "Human provided feedback",
-                    code: undefined,
-                    location: undefined
-                },
-                notes: userInput
-            };
+            // Check for @AgentName syntax (e.g., @Morgan: please review)
+            const mentionMatch = userInput.match(/^@([a-zA-Z0-9\-_]+)[:\s]*(.*)/s);
+
+            if (mentionMatch) {
+                const requestedTarget = mentionMatch[1];
+                const content = mentionMatch[2].trim();
+
+                response = {
+                    targetAgent: requestedTarget,
+                    reasoning: content || userInput,
+                    changes: {
+                        description: `Human delegated to ${requestedTarget}`,
+                        code: undefined,
+                        location: undefined
+                    },
+                    notes: content || userInput
+                };
+            } else {
+                // Treat as simple text feedback
+                response = {
+                    targetAgent: availableTargets[0], // Default to first available
+                    reasoning: userInput,
+                    changes: {
+                        description: "Human provided feedback",
+                        code: undefined,
+                        location: undefined
+                    },
+                    notes: userInput
+                };
+            }
         }
 
         // Ensure target agent is valid
