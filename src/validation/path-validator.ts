@@ -30,7 +30,11 @@ export class PathValidator {
   private static ALLOWED_EXTENSIONS = ['.ts', '.md', '.json', '.js'];
 
   // Critical system files are protected from accidental modification, 
-  // but agents need to be able to edit orchestrator.ts during implementation cycles.
+  /**
+   * Defines a list of critical system files that are protected from accidental modification.
+   * Note: Agents need to be able to edit `orchestrator.ts` during implementation cycles,
+   * but this array helps protect other critical files like `src/config.ts`.
+   */
   private static SENSITIVE_SYSTEM_FILES = [
     'src/config.ts'
   ];
@@ -126,6 +130,6 @@ export function validatePath(filePath: string): { isValid: boolean; error?: stri
     PathValidator.validatePath(filePath);
     return { isValid: true, normalizedPath: path.normalize(filePath).replace(/\\/g, '/') };
   } catch (error: any) {
-    return { isValid: false, error: error.message, normalizedPath: filePath };
+    return { isValid: false, error: error.message, normalizedPath: path.normalize(filePath).replace(/\\/g, '/') };
   }
 }

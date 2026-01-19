@@ -316,6 +316,11 @@ ${context.humanNotes || '(None)'}
      * @returns A Promise that resolves to an object indicating success status and an optional error message.
      */
     private async handleFileWrite(fileWrite: FileWriteRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
+        if (!fileWrite || !fileWrite.filePath || typeof fileWrite.filePath !== 'string' || fileWrite.filePath.trim().length === 0) {
+            const error = `Invalid fileWrite request: 'filePath' is missing or invalid. Received: '${fileWrite?.filePath}'.`;
+            console.error(`   ❌ ${error} `);
+            return { success: false, error };
+        }
         console.log(`\n📝 ${agentName} requesting file write: ${fileWrite.filePath}`);
         console.log(`   Reason: ${fileWrite.reason}`);
 
@@ -734,8 +739,14 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
         console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit?.filePath || 'undefined'}`);
         console.log(`   Reason: ${fileEdit?.reason || 'No reason provided'} `);
 
-        if (!fileEdit || !fileEdit.edits || !Array.isArray(fileEdit.edits)) {
-            const error = `Invalid fileEdit request: 'edits' array is missing or invalid.`;
+        if (!fileEdit || !fileEdit.filePath || typeof fileEdit.filePath !== 'string' || fileEdit.filePath.trim().length === 0) {
+            const error = `Invalid fileEdit request: 'filePath' is missing or invalid. Received: '${fileEdit?.filePath}'.`;
+            console.error(`   ❌ ${error} `);
+            return { success: false, error };
+        }
+
+        if (!fileEdit.edits || !Array.isArray(fileEdit.edits)) {
+            const error = `Invalid fileEdit request for ${fileEdit.filePath}: 'edits' array is missing or invalid.`;
             console.error(`   ❌ ${error} `);
             return { success: false, error };
         }
@@ -1777,7 +1788,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         console.log(`\n📖 File read: ${result.fileRead.filePath} (${lineCount} lines)\n`);
 
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'file_read_success',
                             notes: `📖 File content from ${result.fileRead.filePath} (${lineCount} lines):\n\n${numberedContent}`,
@@ -1785,7 +1796,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         });
                     } else {
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'file_read_failed',
                             notes: `❌ Failed to read ${result.fileRead.filePath}: ${readResult.error}`,
@@ -1797,7 +1808,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     if (readResult.success && readResult.content) {
                         const numberedContent = this.formatWithLineNumbers(readResult.content, result.lineRead.startLine);
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'line_read_success',
                             notes: `📖 Lines ${result.lineRead.startLine}-${result.lineRead.endLine} from ${result.lineRead.filePath}:\n\n${numberedContent}`,
@@ -1805,7 +1816,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         });
                     } else {
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'line_read_failed',
                             notes: `❌ Failed to read lines from ${result.lineRead.filePath}: ${readResult.error}`,
@@ -1817,7 +1828,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     if (grepResult.success && grepResult.matches) {
                         const matchesStr = grepResult.matches.join('\n');
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'file_grep_success',
                             notes: `🔍 Search results for "${result.fileGrep.pattern}" in ${result.fileGrep.filePath}:\n\n${matchesStr}`,
@@ -1825,7 +1836,7 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                         });
                     } else {
                         projectFile.history.push({
-                            agent: 'Orchestrator',
+                            agent: currentAgent.getName(),
                             timestamp: new Date().toISOString(),
                             action: 'file_grep_failed',
                             notes: `❌ Search failed for "${result.fileGrep.pattern}" in ${result.fileGrep.filePath}: ${grepResult.error}`,
@@ -1900,65 +1911,72 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             // Handle file edit requests (surgical edits)
             let editOrWriteFailed = false;
             if (result.fileEdit) {
-                const editResult = await this.handleFileEdit(result.fileEdit, currentAgent.getName());
+                const edits = Array.isArray(result.fileEdit) ? result.fileEdit : [result.fileEdit];
+                for (const editRequest of edits) {
+                    const editResult = await this.handleFileEdit(editRequest, currentAgent.getName());
 
-                if (!editResult.success && editResult.error) {
-                    editOrWriteFailed = true;
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_edit_failed',
-                        notes: `❌ EDIT FAILED for ${result.fileEdit.filePath}\n\nErrors:\n${editResult.error}`,
-                        changes: {
-                            description: 'File edit failed - see errors above',
-                            location: result.fileEdit.filePath
-                        }
-                    });
+                    if (!editResult.success && editResult.error) {
+                        editOrWriteFailed = true;
+                        projectFile.history.push({
+                            agent: currentAgent.getName(),
+                            timestamp: new Date().toISOString(),
+                            action: 'file_edit_failed',
+                            notes: `❌ EDIT FAILED for ${editRequest.filePath || 'unknown path'}\n\nErrors:\n${editResult.error}`,
+                            changes: {
+                                description: 'File edit failed - see errors above',
+                                location: editRequest.filePath || ''
+                            }
+                        });
 
-                    console.log(`\n⚠️  Edit failed. Giving ${currentAgent.getName()} a chance to fix it right away.\n`);
-                } else if (editResult.success) {
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_edit_success',
-                        notes: `✅ Successfully edited and validated ${result.fileEdit.filePath} (${result.fileEdit.edits.length} change(s))`,
-                        changes: {
-                            description: `Applied ${result.fileEdit.edits.length} edit(s) successfully`,
-                            location: result.fileEdit.filePath
-                        }
-                    });
+                        console.log(`\n⚠️  Edit failed for ${editRequest.filePath}. Giving ${currentAgent.getName()} a chance to fix it right away.\n`);
+                    } else if (editResult.success) {
+                        const editCount = editRequest.edits?.length || 0;
+                        projectFile.history.push({
+                            agent: currentAgent.getName(),
+                            timestamp: new Date().toISOString(),
+                            action: 'file_edit_success',
+                            notes: `✅ Successfully edited and validated ${editRequest.filePath} (${editCount} change(s))`,
+                            changes: {
+                                description: `Applied ${editCount} edit(s) successfully`,
+                                location: editRequest.filePath || ''
+                            }
+                        });
+                    }
                 }
             }
 
             // Handle file write requests (full file writes - for new files)
             if (result.fileWrite) {
-                const writeResult = await this.handleFileWrite(result.fileWrite, currentAgent.getName());
+                const writes = Array.isArray(result.fileWrite) ? result.fileWrite : [result.fileWrite];
+                for (const writeRequest of writes) {
+                    const writeResult = await this.handleFileWrite(writeRequest, currentAgent.getName());
 
-                if (!writeResult.success && writeResult.error) {
-                    editOrWriteFailed = true;
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_write_failed',
-                        notes: `❌ COMPILATION FAILED for ${result.fileWrite.filePath}\n\nErrors:\n${writeResult.error}`,
-                        changes: {
-                            description: 'File write failed - see errors above',
-                            location: result.fileWrite.filePath
-                        }
-                    });
+                    if (!writeResult.success && writeResult.error) {
+                        editOrWriteFailed = true;
+                        projectFile.history.push({
+                            agent: currentAgent.getName(),
+                            timestamp: new Date().toISOString(),
+                            action: 'file_write_failed',
+                            notes: `❌ COMPILATION FAILED for ${writeRequest.filePath || 'unknown path'}\n\nErrors:\n${writeResult.error}`,
+                            changes: {
+                                description: 'File write failed - see errors above',
+                                location: writeRequest.filePath || ''
+                            }
+                        });
 
-                    console.log(`\n⚠️  Compilation failed. Giving ${currentAgent.getName()} a chance to fix it right away.\n`);
-                } else if (writeResult.success) {
-                    projectFile.history.push({
-                        agent: 'Orchestrator',
-                        timestamp: new Date().toISOString(),
-                        action: 'file_write_success',
-                        notes: `✅ Successfully saved and validated ${result.fileWrite.filePath}`,
-                        changes: {
-                            description: 'File compiled successfully and saved',
-                            location: result.fileWrite.filePath
-                        }
-                    });
+                        console.log(`\n⚠️  Compilation failed for ${writeRequest.filePath}. Giving ${currentAgent.getName()} a chance to fix it right away.\n`);
+                    } else if (writeResult.success) {
+                        projectFile.history.push({
+                            agent: currentAgent.getName(),
+                            timestamp: new Date().toISOString(),
+                            action: 'file_write_success',
+                            notes: `✅ Successfully saved and validated ${writeRequest.filePath}`,
+                            changes: {
+                                description: 'File compiled successfully and saved',
+                                location: writeRequest.filePath || ''
+                            }
+                        });
+                    }
                 }
             }
 

@@ -115,17 +115,16 @@ describe('PathValidator', () => {
     });
   });
 
-  // Test the standalone validatePath export
-  describe('exported validatePath function', () => {
-    it('should return { isValid: true } for a valid path', () => {
+  // Test the PathValidator.validatePath static method directly
+  describe('PathValidator.validatePath method', () => {
+    it('should return true for a valid path', () => {
       const result = PathValidator.validatePath('src/test.ts');
       expect(result).toBe(true);
     });
 
-    it('should return { isValid: false, error: message } for an invalid path', () => {
-      const { isValid, error } = PathValidator.validatePath('unallowed/test.ts');
-      expect(isValid).toBe(false);
-      expect(error).toContain('Path must be in allowed directories');
+    it('should throw PathValidationError for an invalid path', () => {
+      expect(() => PathValidator.validatePath('unallowed/test.ts')).toThrow(PathValidationError);
+      expect(() => PathValidator.validatePath('unallowed/test.ts')).toThrow(/Path must be in allowed directories/);
     });
   });
 });
