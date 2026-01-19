@@ -794,16 +794,20 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                     console.log(`   🔸 Exact match failed for Edit ${i + 1}, trying resilient match...`);
 
                     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-                    const normalizedFind = normalize(findPattern);
+                    const stripLineNumbers = (s: string) => s.replace(/^\s*\d+\s*\|\s*/gm, '');
+
+                    const cleanedFind = stripLineNumbers(findPattern);
+                    const cleanedReplace = stripLineNumbers(edit.replace);
+                    const normalizedFind = normalize(cleanedFind);
                     const normalizedContent = normalize(content);
 
                     if (normalizedContent.includes(normalizedFind)) {
-                        console.log(`   ✨ Resilient match found! Proceeding with replacement.`);
+                        console.log(`   ✨ Resilient match found (after stripping line numbers if present)! Proceeding with replacement.`);
                         // For simplicity, we fallback to a more complex regex approach if needed, 
                         // but for now we'll just report what went wrong if we can't easily map back.
                         // Actually, let's implement a regex that handles it.
 
-                        const regexString = findPattern
+                        const regexString = cleanedFind
                             .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex
                             .replace(/\s+/g, '\\s+'); // Allow any whitespace
                         const regex = new RegExp(regexString);
@@ -813,7 +817,7 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                             firstIndex = match.index;
                             // Update findPattern for this specific iteration to the matched text
                             const matchedText = match[0];
-                            content = content.replace(matchedText, edit.replace);
+                            content = content.replace(matchedText, cleanedReplace);
                             console.log(`   ✓ Edit ${i + 1}: Applied via resilient match`);
                             continue;
                         }
