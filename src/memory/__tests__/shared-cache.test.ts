@@ -10,9 +10,7 @@
  * - Reason field (documentation-only, never affects eviction)
  * - Sensitive bucket protection (never auto-evicts)
  * - Stats tracking and observability
- */
-
-// Sam: Triggering test run for validation.
+ */ // Sam: Test run re-triggered by Jordan for verification of SharedMemoryCache changes.
 import { SharedMemoryCache, BucketType, CacheEntry, CacheStats } from '../shared-cache';
 
 describe('SharedMemoryCache', () => {
@@ -21,12 +19,12 @@ describe('SharedMemoryCache', () => {
   beforeEach(() => {
     cache = new SharedMemoryCache();
     // Suppress console logs during tests
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('Basic Operations', () => {

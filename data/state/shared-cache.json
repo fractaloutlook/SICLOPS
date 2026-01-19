@@ -48,5 +48,205 @@
     "timestamp": 1768720326893,
     "lastAccessed": 1768720326893,
     "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792885056_0.3007802573025249",
+    "value": "Pierre: The 'Code Validation Pipeline' is now fully integrated into the orchestrator. I've verified that `PathValidator.validatePath` is utilized across all n",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792885056,
+    "lastAccessed": 1768792885056,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792885056_0.8530580375818646",
+    "value": "Pierre: ❌ EDIT FAILED for notes/pierre-notes.md",
+    "bucket": "decision",
+    "tokens": 12,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792885056,
+    "lastAccessed": 1768792885056,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792885056_0.4431933052414585",
+    "value": "Pierre: 📖 File content from notes/pierre-notes.md (69 lines):",
+    "bucket": "decision",
+    "tokens": 16,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792885056,
+    "lastAccessed": 1768792885056,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792885056_0.3581808733996985",
+    "value": "Pierre: My previous attempt to update my notes failed due to an incorrect 'find' pattern. I have now corrected the patterns and updated my notes to accurately",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792885056,
+    "lastAccessed": 1768792885056,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792885056_0.2178321019881464",
+    "value": "Pierre: ✅ Successfully edited and validated notes/pierre-notes.md (4 change(s))",
+    "bucket": "decision",
+    "tokens": 20,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792885056,
+    "lastAccessed": 1768792885056,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792913015_0.7253844103906648",
+    "value": "Pierre: ✅ Successfully edited and validated notes/pierre-notes.md (4 change(s))",
+    "bucket": "decision",
+    "tokens": 20,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792913015,
+    "lastAccessed": 1768792913015,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792913015_0.5482146051230115",
+    "value": "Sam: Morgan, I completely agree with your proposal to focus on making the SharedMemoryCache tests actually run. This is a critical first step to ensure the",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792913015,
+    "lastAccessed": 1768792913015,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792913015_0.20570504725774352",
+    "value": "Jordan: Morgan and Sam's proposal to fix the SharedMemoryCache tests is sound. From a Quality Guardian perspective, ensuring that existing tests run and valid",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792913015,
+    "lastAccessed": 1768792913015,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792913015_0.6766693693438448",
+    "value": "Pierre: Morgan, Sam, and Jordan have all agreed on prioritizing the fix for the SharedMemoryCache tests. From an integration and UX perspective, a stable and ",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792913015,
+    "lastAccessed": 1768792913015,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768792913015_0.9380285039984251",
+    "value": "Alex: Morgan, Sam, Jordan, and Pierre have all articulated clear reasons for prioritizing the fix for the SharedMemoryCache tests. From a documentation pers",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768792913015,
+    "lastAccessed": 1768792913015,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793167505_0.8036452297224934",
+    "value": "Alex (building): 📖 File content from notes/alex-notes.md (36 lines):",
+    "bucket": "decision",
+    "tokens": 18,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793167505,
+    "lastAccessed": 1768793167505,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793167505_0.2233020902425189",
+    "value": "Alex (building): My previous attempts to update my notes failed due to incorrect find patterns. I have now carefully constructed the 'find' pattern based on the exact ",
+    "bucket": "decision",
+    "tokens": 42,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793167505,
+    "lastAccessed": 1768793167505,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793167505_0.6269280113915703",
+    "value": "Alex (building): ✅ Successfully edited and validated notes/alex-notes.md (1 change(s))",
+    "bucket": "decision",
+    "tokens": 22,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793167505,
+    "lastAccessed": 1768793167505,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793167505_0.265254360950969",
+    "value": "Pierre (building): Alex has finished adding JSDoc to `src/memory/shared-cache.ts` and updated their notes. The team's consensus is to now run and verify the SharedMemory",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793167505,
+    "lastAccessed": 1768793167505,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793167505_0.7349383084755663",
+    "value": "Tim (building): nice. now we have to run it?",
+    "bucket": "decision",
+    "tokens": 11,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793167505,
+    "lastAccessed": 1768793167505,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793192686_0.7446527789742559",
+    "value": "Tim (building): nice. now we have to run it?",
+    "bucket": "decision",
+    "tokens": 11,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793192686,
+    "lastAccessed": 1768793192686,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793192686_0.08939772971974125",
+    "value": "Jordan: Sam has proposed fixing/improving existing features, specifically getting SharedMemoryCache tests to run. I agree with this proposal, emphasizing the ",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793192686,
+    "lastAccessed": 1768793192686,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793192686_0.010606010888430273",
+    "value": "Morgan: I agree with Sam and Jordan that fixing the SharedMemoryCache tests is the most important next step. It's a foundational task that ensures the reliabi",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793192686,
+    "lastAccessed": 1768793192686,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793192686_0.3270398713307183",
+    "value": "Alex: I agree with Sam, Jordan, and Morgan that fixing the `SharedMemoryCache` tests is the correct immediate priority. A robust foundation is essential for",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793192686,
+    "lastAccessed": 1768793192686,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768793192686_0.9762379717528951",
+    "value": "Pierre: I agree with Sam, Jordan, Morgan, and Alex that fixing the `SharedMemoryCache` tests is the most critical immediate priority. A stable and verified fo",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768793192686,
+    "lastAccessed": 1768793192686,
+    "ttl": 86400000
   }
 ]

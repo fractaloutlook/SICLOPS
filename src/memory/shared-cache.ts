@@ -59,6 +59,17 @@ export interface CacheStats {
   missCount: number;
 }
 
+/**
+ * Implements a three-bucket LRU cache for sharing context between agents.
+ * It intelligently manages memory by classifying entries into 'transient', 'decision', and 'sensitive' buckets,
+ * each with different eviction policies and TTLs.
+ *
+ * - `MAX_TOKENS`: Hard cap on total cache size (default: 50,000 tokens).
+ * - `SENSITIVE_TOKENS`: Dedicated allocation for sensitive data (default: 10% of MAX_TOKENS),
+ *   which is protected from automatic LRU eviction.
+ * - `TTL_CONFIG`: Time-to-live settings for each bucket type, ensuring timely data expiration.
+ * - Statistics are tracked for observability (hits, misses, evictions).
+ */
 export class SharedMemoryCache {
   private cache: Map<string, CacheEntry> = new Map();
   private readonly MAX_TOKENS = 50000;
