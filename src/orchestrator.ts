@@ -7,7 +7,7 @@ import { AGENT_CONFIGS, API_KEYS, AGENT_WORKFLOW_ORDER } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange } from './types';
+import { AgentConfig, ProjectFile, Changes, OrchestratorContext, FileWriteRequest, FileReadRequest, FileEditRequest, CodeChange, CommandRequest } from './types';
 import { SharedMemoryCache, CacheEntry } from './memory/shared-cache';
 import { PathValidator } from './validation/path-validator';
 import { generateVersion } from './utils/version-utils';
@@ -380,110 +380,98 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
 
             console.log(`   ✓ Wrote to temp file: ${tempPath}`);
 
-            // Step 2: Validate TypeScript compilation
-            console.log(`   🔍 Validating TypeScript compilation...`);
-            const { exec } = await import('child_process');
-            const { promisify } = await import('util');
-            const execAsync = promisify(exec);
+            // Step 2: Validate TypeScript compilation only for code files
+            const isCodeFile = fileWrite.filePath.endsWith('.ts') || fileWrite.filePath.endsWith('.js');
+            if (isCodeFile) {
+                console.log(`   🔍 Validating TypeScript compilation...`);
+                const { exec } = await import('child_process');
+                const { promisify } = await import('util');
+                const execAsync = promisify(exec);
 
-            try {
-                await execAsync('npx tsc --noEmit', { timeout: 30000 });
-                console.log(`   ✅ TypeScript validation passed!`);
-
-                // Step 3: Move temp file to actual location
-                const fs = await import('fs/promises');
-                await fs.rename(tempPath, fileWrite.filePath);
-
-                codeChange.appliedAt = new Date().toISOString();
-                codeChange.validatedAt = new Date().toISOString();
-                codeChange.status = 'validated';
-
-                console.log(`   💾 Saved to: ${fileWrite.filePath}`);
-
-                // Track in context
-                context.codeChanges.push(codeChange);
-                await this.saveContext(context);
-
-                console.log(`   📊 Status: ${codeChange.status}\n`);
-
-                // Auto-run tests if this is a test file
-                if (fileWrite.filePath.includes('/__tests__/') || fileWrite.filePath.endsWith('.test.ts')) {
-                    const testFilePath = path.resolve(fileWrite.filePath); // Ensure absolute path
-                    console.log(`   🚀 Running tests for ${testFilePath}...`);
-                    try {
-                        const { spawn } = await import('child_process');
-                        const jestArgs = ['jest', '--config', 'jest.config.js', testFilePath];
-                        // Using shell: true is required for npx to work correctly on Windows
-                        const command = `npx ${jestArgs.join(' ')}`;
-                        const child = spawn(command, {
-                            timeout: 60000,
-                            shell: true
-                        });
-
-                        const stdoutBuffer: string[] = [];
-                        const stderrBuffer: string[] = [];
-
-                        child.stdout.on('data', (data) => stdoutBuffer.push(data.toString()));
-                        child.stderr.on('data', (data) => stderrBuffer.push(data.toString()));
-
-                        await new Promise<void>((resolve, reject) => {
-                            child.on('close', (code) => {
-                                if (code === 0) {
-                                    resolve();
-                                } else {
-                                    reject(new Error(`Test command failed with code ${code}.\nSTDOUT: ${stdoutBuffer.join('')}\nSTDERR: ${stderrBuffer.join('')}`));
-                                }
-                            });
-                            child.on('error', (err) => reject(err));
-                        });
-                        console.log(`   ✅ Tests passed for ${testFilePath}`);
-                        console.log(`      STDOUT:\n${stdoutBuffer.join('')}`);
-                        if (stderrBuffer.length > 0) console.warn(`      STDERR:\n${stderrBuffer.join('')}`);
-                    } catch (testError: any) {
-                        console.error(`   ❌ Tests failed for ${testFilePath}:`);
-                        console.error(`      ERROR: ${testError.message}`);
-                        if (testError.stdout) console.error(`      STDOUT:\n${testError.stdout}`);
-                        if (testError.stderr) console.error(`      STDERR:\n${testError.stderr}`);
-                    }
-                }
-
-                return { success: true };
-
-            } catch (compileError: any) {
-                // Compilation failed
-                const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
-                console.error(`   ❌ TypeScript compilation failed:`);
-                console.error(`   ${errorMsg.substring(0, 500)}`);
-
-                codeChange.status = 'failed';
-                codeChange.validationError = errorMsg;
-
-                // Save failed attempt for debugging (don't delete it!)
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const failedPath = `${fileWrite.filePath}.failed.${timestamp}.ts`;
                 try {
+                    await execAsync('npx tsc --noEmit', { timeout: 30000 });
+                    console.log(`   ✅ TypeScript validation passed!`);
+                } catch (compileError: any) {
+                    const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
+                    console.error(`   ❌ TypeScript compilation failed:`);
+                    console.error(`   ${errorMsg.substring(0, 500)}`);
+
+                    // Save failed attempt for debugging
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const failedPath = `${fileWrite.filePath}.failed.${timestamp}.ts`;
                     const fs = await import('fs/promises');
                     await fs.rename(tempPath, failedPath);
-                    console.log(`   💾 Saved failed attempt to: ${failedPath}`);
-                } catch (e: any) {
-                    console.error(`   Failed to save failed attempt: ${e}`);
+                    console.log(`   💾 Saved failed version to: ${failedPath}`);
+
+                    codeChange.status = 'failed';
+                    codeChange.validationError = errorMsg;
+                    context.codeChanges.push(codeChange);
+                    await this.saveContext(context);
+
+                    return {
+                        success: false,
+                        error: `TypeScript compilation failed. File not saved. Error: ${errorMsg.substring(0, 500)}`
+                    };
                 }
-
-                console.log(`   ⚠️  File NOT saved due to compilation errors`);
-
-                // CRITICAL: Return error to agent so they know it failed
-                return {
-                    success: false,
-                    error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}`
-                };
+            } else {
+                console.log(`   ℹ️  Skipping TypeScript validation for non-code file: ${fileWrite.filePath}`);
             }
+
+            // Step 3: Move temp file to actual location
+            const fs = await import('fs/promises');
+            await fs.rename(tempPath, fileWrite.filePath);
+
+            codeChange.appliedAt = new Date().toISOString();
+            codeChange.status = isCodeFile ? 'validated' : 'applied';
+            if (isCodeFile) codeChange.validatedAt = new Date().toISOString();
+
+            console.log(`   💾 Saved to: ${fileWrite.filePath}`);
+
+            // Track in context
+            context.codeChanges.push(codeChange);
+            await this.saveContext(context);
+
+            console.log(`   📊 Status: ${codeChange.status}\n`);
+
+            // Auto-run tests if this is a test file
+            if (fileWrite.filePath.includes('/__tests__/') || fileWrite.filePath.endsWith('.test.ts')) {
+                const testFilePath = path.resolve(fileWrite.filePath);
+                console.log(`   🚀 Running tests for ${testFilePath}...`);
+                try {
+                    const { spawn } = await import('child_process');
+                    const jestArgs = ['jest', '--config', 'jest.config.js', testFilePath];
+                    const command = `npx ${jestArgs.join(' ')}`;
+                    const child = spawn(command, {
+                        timeout: 60000,
+                        shell: true
+                    });
+
+                    const stdoutBuffer: string[] = [];
+                    const stderrBuffer: string[] = [];
+
+                    child.stdout.on('data', (data) => stdoutBuffer.push(data.toString()));
+                    child.stderr.on('data', (data) => stderrBuffer.push(data.toString()));
+
+                    await new Promise<void>((resolve, reject) => {
+                        child.on('close', (code) => {
+                            if (code === 0) resolve();
+                            else reject(new Error(`Test command failed with code ${code}.\nSTDOUT: ${stdoutBuffer.join('')}\nSTDERR: ${stderrBuffer.join('')}`));
+                        });
+                        child.on('error', (err) => reject(err));
+                    });
+                    console.log(`   ✅ Tests passed for ${testFilePath}`);
+                } catch (testError: any) {
+                    console.error(`   ❌ Tests failed for ${testFilePath}: ${testError.message}`);
+                }
+            }
+
+            return { success: true };
 
         } catch (error: any) {
             console.error(`   ❌ Error handling file write: ${error.message}`);
             codeChange.status = 'failed';
             codeChange.validationError = error.message;
 
-            // Track failed attempt
             context.codeChanges.push(codeChange);
             await this.saveContext(context);
 
@@ -730,17 +718,50 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
      *   - find: exact string to locate (must be unique in file)
      *   - replace: what to replace it with
      *
+     * Handles shell command execution requests from agents.
+     * Use with caution.
+     */
+    private async handleRunCommand(commandRequest: CommandRequest, agentName: string): Promise<{ success: boolean; output?: string; error?: string }> {
+        console.log(`\n⌨️  ${agentName} requesting command execution: ${commandRequest.command}`);
+        console.log(`   Reason: ${commandRequest.reason}`);
+
+        try {
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+
+            // Execute the command with a timeout of 2 minutes
+            const { stdout, stderr } = await execAsync(commandRequest.command, { timeout: 120000 });
+
+            const combinedOutput = `${stdout}${stderr ? '\nSTDERR:\n' + stderr : ''}`;
+            console.log(`   ✅ Command successful! Output: ${combinedOutput.substring(0, 100).trim()}...`);
+
+            return { success: true, output: combinedOutput };
+        } catch (error: any) {
+            const errorMsg = error.stdout || error.stderr || error.message;
+            console.error(`   ❌ Command failed: ${errorMsg.substring(0, 500)}`);
+            return { success: false, error: errorMsg };
+        }
+    }
+
+    /**
+     * Handles file edit requests using PATTERN MATCHING (not line numbers).
+     *
+     * Each edit specifies:
+     *   - find: exact string to locate (must be unique in file)
+     *   - replace: what to replace it with
+     *
      * This approach is more robust than line-based editing because:
      *   1. Agents don't need to count lines
      *   2. The pattern itself serves as verification
      *   3. It's the same approach Claude Code uses successfully
      */
     private async handleFileEdit(fileEdit: FileEditRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
-        console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit?.filePath || 'undefined'}`);
+        console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit?.filePath || 'undefined'} `);
         console.log(`   Reason: ${fileEdit?.reason || 'No reason provided'} `);
 
         if (!fileEdit || !fileEdit.filePath || typeof fileEdit.filePath !== 'string' || fileEdit.filePath.trim().length === 0) {
-            const error = `Invalid fileEdit request: 'filePath' is missing or invalid. Received: '${fileEdit?.filePath}'.`;
+            const error = `Invalid fileEdit request: 'filePath' is missing or invalid.Received: '${fileEdit?.filePath}'.`;
             console.error(`   ❌ ${error} `);
             return { success: false, error };
         }
@@ -758,14 +779,14 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
             // Normalize path
             fileEdit.filePath = path.normalize(fileEdit.filePath).replace(/\\/g, '/');
         } catch (error: any) {
-            console.error(`   ❌ Path validation failed: ${error.message}`);
+            console.error(`   ❌ Path validation failed: ${error.message} `);
             return { success: false, error: error.message };
         }
 
         // Phase Enforcement: Block non-note edits outside of implementation phase
         if (this.currentPhase !== 'implementation' && !fileEdit.filePath.includes('notes/')) {
-            const error = `Access denied: Code edits to '${fileEdit.filePath}' are only allowed during the 'implementation' phase. We are currently in '${this.currentPhase}'. Please reach consensus first.`;
-            console.error(`   ❌ ${error}`);
+            const error = `Access denied: Code edits to '${fileEdit.filePath}' are only allowed during the 'implementation' phase.We are currently in '${this.currentPhase}'.Please reach consensus first.`;
+            console.error(`   ❌ ${error} `);
             return { success: false, error };
         }
 
@@ -802,7 +823,7 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                     const normalizedContent = normalize(content);
 
                     if (normalizedContent.includes(normalizedFind)) {
-                        console.log(`   ✨ Resilient match found (after stripping line numbers if present)! Proceeding with replacement.`);
+                        console.log(`   ✨ Resilient match found(after stripping line numbers if present) !Proceeding with replacement.`);
                         // For simplicity, we fallback to a more complex regex approach if needed, 
                         // but for now we'll just report what went wrong if we can't easily map back.
                         // Actually, let's implement a regex that handles it.
@@ -866,49 +887,53 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
             const tempPath = `${fileEdit.filePath}.tmp`;
             await FileUtils.writeFile(tempPath, content);
 
-            // Validate TypeScript
-            console.log(`   🔍 Validating TypeScript compilation...`);
-            const { exec } = await import('child_process');
-            const { promisify } = await import('util');
-            const execAsync = promisify(exec);
+            // Validate TypeScript only for .ts and .js files
+            const isCodeFile = fileEdit.filePath.endsWith('.ts') || fileEdit.filePath.endsWith('.js');
+            if (isCodeFile) {
+                console.log(`   🔍 Validating TypeScript compilation...`);
+                const { exec } = await import('child_process');
+                const { promisify } = await import('util');
+                const execAsync = promisify(exec);
 
-            try {
-                await execAsync('npx tsc --noEmit', { timeout: 30000 });
-                console.log(`   ✅ TypeScript validation passed!`);
+                try {
+                    await execAsync('npx tsc --noEmit', { timeout: 30000 });
+                    console.log(`   ✅ TypeScript validation passed!`);
+                } catch (compileError: any) {
+                    const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
+                    console.error(`   ❌ TypeScript compilation failed:`);
+                    console.error(`   ${errorMsg.substring(0, 500)}`);
 
-                // Move temp to actual
-                const fs = await import('fs/promises');
-                await fs.rename(tempPath, fileEdit.filePath);
+                    // Save failed attempt for debugging
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const failedPath = `${fileEdit.filePath}.failed.${timestamp}.ts`;
+                    const fs = await import('fs/promises');
+                    await fs.rename(tempPath, failedPath);
+                    console.log(`   💾 Saved failed edit to: ${failedPath}`);
 
-                // Track change
-                const codeChange: CodeChange = {
-                    file: fileEdit.filePath,
-                    action: 'edit',
-                    content: content,
-                    appliedAt: new Date().toISOString(),
-                    validatedAt: new Date().toISOString(),
-                    status: 'validated'
-                };
-                context.codeChanges.push(codeChange);
-                await this.saveContext(context);
-
-                console.log(`   💾 Saved edits to: ${fileEdit.filePath}\n`);
-                return { success: true };
-
-            } catch (compileError: any) {
-                const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
-                console.error(`   ❌ TypeScript compilation failed:`);
-                console.error(`   ${errorMsg.substring(0, 500)}`);
-
-                // Save failed attempt for debugging
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const failedPath = `${fileEdit.filePath}.failed.${timestamp}.ts`;
-                const fs = await import('fs/promises');
-                await fs.rename(tempPath, failedPath);
-                console.log(`   💾 Saved failed edit to: ${failedPath}`);
-
-                return { success: false, error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}` };
+                    return { success: false, error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}` };
+                }
+            } else {
+                console.log(`   ℹ️  Skipping TypeScript validation for non-code file: ${fileEdit.filePath}`);
             }
+
+            // Move temp to actual (now outside the try/catch logic for validation)
+            const fs = await import('fs/promises');
+            await fs.rename(tempPath, fileEdit.filePath);
+
+            // Track change
+            const codeChange: CodeChange = {
+                file: fileEdit.filePath,
+                action: 'edit',
+                content: content,
+                appliedAt: new Date().toISOString(),
+                validatedAt: new Date().toISOString(),
+                status: 'validated'
+            };
+            context.codeChanges.push(codeChange);
+            await this.saveContext(context);
+
+            console.log(`   💾 Saved edits to: ${fileEdit.filePath}\n`);
+            return { success: true };
 
         } catch (error: any) {
             console.error(`   ❌ Error applying edits: ${error.message}`);
@@ -1984,8 +2009,40 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                 }
             }
 
+            // Handle shell command requests
+            if (result.runCommand) {
+                const commandResult = await this.handleRunCommand(result.runCommand, currentAgent.getName());
+
+                if (!commandResult.success && commandResult.error) {
+                    editOrWriteFailed = true; // Use same flag to trigger retry
+                    projectFile.history.push({
+                        agent: currentAgent.getName(),
+                        timestamp: new Date().toISOString(),
+                        action: 'run_command_failed',
+                        notes: `❌ COMMAND FAILED: ${result.runCommand.command}\n\nErrors:\n${commandResult.error}`,
+                        changes: {
+                            description: 'Shell command failed - see errors above',
+                            location: 'terminal'
+                        }
+                    });
+
+                    console.log(`\n⚠️  Command failed. Giving ${currentAgent.getName()} a chance to fix it right away.\n`);
+                } else if (commandResult.success) {
+                    projectFile.history.push({
+                        agent: currentAgent.getName(),
+                        timestamp: new Date().toISOString(),
+                        action: 'run_command_success',
+                        notes: `✅ COMMAND SUCCESS: ${result.runCommand.command}\n\nOutput:\n${commandResult.output}`,
+                        changes: {
+                            description: 'Shell command executed successfully',
+                            location: 'terminal'
+                        }
+                    });
+                }
+            }
+
             // Detect phase transition: if agents are doing file operations, they're implementing!
-            if ((result.fileRead || result.fileEdit || result.fileWrite) && projectStage === 'team_discussion') {
+            if ((result.fileRead || result.fileEdit || result.fileWrite || result.runCommand) && projectStage === 'team_discussion') {
                 projectStage = 'implementation';
                 projectFile.currentStage = 'implementation';
                 console.log(`\n🔨 Phase auto-detected: IMPLEMENTATION (agents are working on code)\n`);

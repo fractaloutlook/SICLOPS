@@ -57,9 +57,12 @@ export class FileUtils {
         }
     }
 
-    static async writeFile(path: string, content: string): Promise<void> {
-        await this.ensureDirectoryExists(path.substring(0, path.lastIndexOf('/')));
-        await fs.writeFile(path, content, 'utf-8');
+    static async writeFile(pathStr: string, content: string): Promise<void> {
+        const dir = path.dirname(pathStr);
+        if (dir !== '.' && dir !== '/' && dir !== '') {
+            await this.ensureDirectoryExists(dir);
+        }
+        await fs.writeFile(pathStr, content, 'utf-8');
     }
 
     public static async readDir(dir: string): Promise<string[]> {

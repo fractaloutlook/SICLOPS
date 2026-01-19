@@ -348,5 +348,55 @@
     "timestamp": 1768794339455,
     "lastAccessed": 1768794339455,
     "ttl": 86400000
+  },
+  {
+    "key": "decision_1768794677521_0.3898702583377054",
+    "value": "Sam (building): ❌ EDIT FAILED for notes/sam-notes.md",
+    "bucket": "decision",
+    "tokens": 13,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768794677521,
+    "lastAccessed": 1768794677521,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768794677521_0.3037038362138862",
+    "value": "Sam (building): Morgan's `src/memory/shared-cache.test.ts` file has critical TypeScript compilation errors because the Jest type definitions are missing. The error me",
+    "bucket": "decision",
+    "tokens": 42,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768794677521,
+    "lastAccessed": 1768794677521,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768794677521_0.6547622130882005",
+    "value": "Sam (building): ❌ EDIT FAILED for notes/sam-notes.md",
+    "bucket": "decision",
+    "tokens": 13,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768794677521,
+    "lastAccessed": 1768794677521,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768794677521_0.17306837739254965",
+    "value": "Sam (building): The `src/memory/shared-cache.test.ts` file is causing TypeScript compilation errors across the entire project due to missing Jest type definitions. Th",
+    "bucket": "decision",
+    "tokens": 42,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768794677521,
+    "lastAccessed": 1768794677521,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768794677521_0.8914685770419597",
+    "value": "Tim (building): I have installed the JEST types using \"npm i --save-dev @types/jest\" so it should run now??",
+    "bucket": "decision",
+    "tokens": 27,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768794677521,
+    "lastAccessed": 1768794677521,
+    "ttl": 86400000
   }
 ]

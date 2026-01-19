@@ -37,6 +37,24 @@ export function summarizeContext(context: OrchestratorContext): OrchestratorCont
             summarized.discussionSummary.keyDecisions.slice(-MAX_KEY_DECISIONS);
     }
 
+    // CRITICAL: Prevent token burn by pruning codeChanges content
+    // Keep last 10 changes, and truncate their content
+    if (summarized.codeChanges && summarized.codeChanges.length > 0) {
+        // Keep last 10 changes
+        const MAX_CODE_CHANGES = 10;
+        if (summarized.codeChanges.length > MAX_CODE_CHANGES) {
+            summarized.codeChanges = summarized.codeChanges.slice(-MAX_CODE_CHANGES);
+        }
+
+        // Truncate content of remaining changes
+        summarized.codeChanges = summarized.codeChanges.map(change => ({
+            ...change,
+            content: change.content.length > 500
+                ? change.content.substring(0, 500) + '\n... (truncated for context size)'
+                : change.content
+        }));
+    }
+
     return summarized;
 }
 
@@ -54,7 +72,7 @@ export function estimateContextTokens(context: OrchestratorContext): number {
  */
 export function needsSummarization(context: OrchestratorContext): boolean {
     return context.history.length > MAX_HISTORY_ENTRIES ||
-           context.discussionSummary.keyDecisions.length > MAX_KEY_DECISIONS;
+        context.discussionSummary.keyDecisions.length > MAX_KEY_DECISIONS;
 }
 
 /**

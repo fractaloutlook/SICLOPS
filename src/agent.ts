@@ -1,5 +1,5 @@
 import { BaseAgent, AgentState } from './agent-base';
-import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequest, FileEditRequest } from './types';
+import { AgentConfig, ProcessResult, ProjectFile, FileWriteRequest, FileReadRequest, FileEditRequest, CommandRequest } from './types';
 import { AGENT_CONFIGS } from './config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
@@ -19,6 +19,7 @@ interface ApiResponse {
     fileGrep?: any;
     fileEdit?: FileEditRequest;
     fileWrite?: FileWriteRequest;
+    runCommand?: CommandRequest;
     targetAgent: string
     reasoning: string;
     notes: string;
@@ -296,6 +297,17 @@ This is self-improvement work - you ARE the product.
   }
   \`\`\`
 - fileWrite: Create brand new files (not for editing existing ones)
+- runCommand: Execute shell commands for environmental changes (e.g., npm install, git commit)
+  \`\`\`json
+  {
+    "runCommand": {
+      "command": "npm install @types/jest",
+      "reason": "Required for running unit tests"
+    },
+    "targetAgent": "Self/Next",
+    "reasoning": "..."
+  }
+  \`\`\`
 - Notebooks: Each agent has notes/*.md files to track observations across runs
 
 **What You've Already Built:**
@@ -394,6 +406,7 @@ Format:
     },
     "fileEdit": { ... }, // PREFERRED: Use for existing files
     "fileWrite": { ... }, // Use ONLY for new files
+    "runCommand": { "action": "run_command", "command": "npm install ...", "reason": "..." },
     "lineRead": { "action": "line_read", "filePath": "src/utils.ts", "startLine": 1, "endLine": 50, "reason": "..." },
     "fileGrep": { "action": "file_grep", "filePath": "src/utils.ts", "pattern": "functionName", "reason": "..." },
     "targetAgent": "REQUIRED: Name of the team member who should receive this next (choose from available list)",
@@ -668,12 +681,17 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 lineRead: response.lineRead,
                 fileGrep: response.fileGrep,
                 fileEdit: response.fileEdit,
-                fileWrite: response.fileWrite
+                fileWrite: response.fileWrite,
+                runCommand: response.runCommand
             });
 
             if (response.fileRead) this.trackFileRead();
             if (response.fileEdit) this.trackFileEdit();
             if (response.fileWrite) this.trackFileWrite();
+            if (response.runCommand) {
+                // We'll use a generic counter or just log it
+                console.log(`[Agent:${this.config.name}] Requested shell command: ${response.runCommand.command}`);
+            }
 
             return {
                 accepted: true,
@@ -685,6 +703,7 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 fileGrep: response.fileGrep,
                 fileEdit: response.fileEdit,
                 fileWrite: response.fileWrite,
+                runCommand: response.runCommand,
                 notes: response.notes,
                 consensus: response.consensus,
                 returnForFix: response.returnForFix,

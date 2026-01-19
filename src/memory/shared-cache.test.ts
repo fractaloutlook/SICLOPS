@@ -1,4 +1,4 @@
-import { SharedMemoryCache, BucketType, CacheEntry } from './shared-cache';
+import { SharedMemoryCache, BucketType, CacheEntry } from './shared-cache'; // Sam: Verifying Jest types are now recognized and tests can run.
 
 describe('SharedMemoryCache', () => {
   let cache: SharedMemoryCache;

@@ -57,6 +57,7 @@ export interface ProcessResult {
     consensus?: 'agree' | 'building' | 'disagree';  // Consensus signal
     conversation?: ConversationResponse;  // For conversation mode
     returnForFix?: boolean;  // Signal to pass backwards for immediate bug fix (use sparingly!)
+    runCommand?: CommandRequest; // Agent can request to run a shell command
     cost: number;
     tokens: {
         input: number;
@@ -101,6 +102,12 @@ export interface FileGrepRequest {
     action: 'file_grep';
     filePath: string;
     pattern: string;
+    reason: string;
+}
+
+export interface CommandRequest {
+    action: 'run_command';
+    command: string;
     reason: string;
 }
 
