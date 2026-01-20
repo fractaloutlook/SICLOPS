@@ -157,6 +157,23 @@ export interface OrchestratorContext {
     humanNotes: string;
 }
 
+/**
+ * Interface for data logged by agent actions.
+ * Provides explicit typing for the 'data' parameter in BaseAgent.log methods.
+ */
 export interface LoggableActionData {
     [key: string]: any;
+    timesProcessed?: number;
+    productiveTurns?: number;
+    totalCost?: number;
+    filePath?: string;
+    reason?: string;
+    command?: string;
+    errors?: string;
+    editCount?: number;
+    targetAgent?: string;
+    newAgentName?: string;
+    newAgentRole?: string;
+    message?: string;
+    status?: 'success' | 'failed' | 'skipped';
 }

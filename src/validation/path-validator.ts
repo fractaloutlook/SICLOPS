@@ -36,7 +36,8 @@ export class PathValidator {
    * but this array helps protect other critical files like `src/config.ts`.
    */
   private static SENSITIVE_SYSTEM_FILES = [
-    'src/config.ts'
+    'src/config.ts',
+    'src/utils/simple-test.ts' // Protect the test runner from accidental 'fixes'
   ];
 
   /**
@@ -59,11 +60,11 @@ export class PathValidator {
     }
 
     const pathParts = normalizedPath.split('/');
-    const rootDir = pathParts[0];
+    const rootDir = pathParts.length > 1 ? pathParts[0] : ''; // Empty string for root-level files
 
     // 2. Check if the path is within allowed root directories
-    // EXCEPTION: Allow specific root-level config files (package.json, .eslintrc.json, tsconfig.json)
-    const allowedRootFiles = ['package.json', '.eslintrc.json', 'tsconfig.json'];
+    // EXCEPTION: Allow specific root-level config files (package.json, eslint.config.js, tsconfig.json)
+    const allowedRootFiles = ['package.json', 'eslint.config.js', 'tsconfig.json'];
     const isRootConfig = allowedRootFiles.includes(normalizedPath);
 
     if (!this.ALLOWED_ROOT_DIRECTORIES.includes(rootDir) && !isRootConfig) {

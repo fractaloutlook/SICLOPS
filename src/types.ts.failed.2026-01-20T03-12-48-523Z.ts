@@ -112,6 +112,23 @@ export interface CommandRequest {
     timeout?: number; // Optional timeout in milliseconds
 }
 
+export interface LoggableActionData {
+    [key: string]: any; // Allow any properties, but provide a base structure
+    // Common properties that might be logged
+    filePath?: string;
+    reason?: string;
+    find?: string;
+    replace?: string;
+    edits?: any[];
+    command?: string;
+    timesProcessed?: number;
+    productiveTurns?: number;
+    totalCost?: number;
+    fileRead?: number;
+    fileEdit?: number;
+    fileWrite?: number;
+}
+
 export interface CodeChange {
     file: string;
     action: 'create' | 'edit' | 'delete';
@@ -155,8 +172,4 @@ export interface OrchestratorContext {
     summarizedHistory: string; // Add this line
     totalCost: number;
     humanNotes: string;
-}
-
-export interface LoggableActionData {
-    [key: string]: any;
 }

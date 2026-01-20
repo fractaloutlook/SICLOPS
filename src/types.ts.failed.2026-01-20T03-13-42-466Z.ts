@@ -41,6 +41,21 @@ export interface AgentConfig {
     taskFocus: string;
 }
 
+export interface LoggableActionData {
+    filePath?: string;
+    reason?: string;
+    command?: string;
+    find?: string;
+    replace?: string;
+    content?: string;
+    edits?: { find: string; replace: string }[];
+    startLine?: number;
+    endLine?: number;
+    pattern?: string;
+    targetAgent?: string;
+    reasoning?: string;
+}
+
 // In types.ts, modify ProcessResult:
 export interface ProcessResult {
     value?: number;
@@ -155,8 +170,4 @@ export interface OrchestratorContext {
     summarizedHistory: string; // Add this line
     totalCost: number;
     humanNotes: string;
-}
-
-export interface LoggableActionData {
-    [key: string]: any;
 }

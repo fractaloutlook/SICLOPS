@@ -112,6 +112,24 @@ export interface CommandRequest {
     timeout?: number; // Optional timeout in milliseconds
 }
 
+export interface StateUpdateLogData {
+    timesProcessed: number;
+    productiveTurns: number;
+    totalCost: number;
+    operation: string;
+}
+
+export interface ProcessResultLogData {
+    fileRead?: FileReadRequest;
+    fileEdit?: FileEditRequest;
+    fileWrite?: FileWriteRequest;
+    targetAgent: string;
+    consensus?: 'agree' | 'building' | 'disagree';
+    notes?: string;
+    reasoning: string;
+    changes?: Changes;
+}
+
 export interface CodeChange {
     file: string;
     action: 'create' | 'edit' | 'delete';
@@ -155,8 +173,4 @@ export interface OrchestratorContext {
     summarizedHistory: string; // Add this line
     totalCost: number;
     humanNotes: string;
-}
-
-export interface LoggableActionData {
-    [key: string]: any;
 }

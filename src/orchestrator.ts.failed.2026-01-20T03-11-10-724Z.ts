@@ -507,10 +507,25 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                     console.log(`   ✅ TypeScript validation passed!`);
                 } catch (compileError: any) {
                     const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
-                    console.warn(`   ⚠️ TypeScript compilation failed, but saving file to allow incremental fixes:`);
-                    console.warn(`   ${errorMsg.substring(0, 500)}`);
-                    // We DO NOT return failure here. We allow the save to proceed.
-                    // The agent will see this warning in the log.
+                    console.error(`   ❌ TypeScript compilation failed:`);
+                    console.error(`   ${errorMsg.substring(0, 500)}`);
+
+                    // Save failed attempt for debugging
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const failedPath = `${fileWrite.filePath}.failed.${timestamp}.ts`;
+                    const fs = await import('fs/promises');
+                    await fs.rename(tempPath, failedPath);
+                    console.log(`   💾 Saved failed version to: ${failedPath}`);
+
+                    codeChange.status = 'failed';
+                    codeChange.validationError = errorMsg;
+                    context.codeChanges.push(codeChange);
+                    await this.saveContext(context);
+
+                    return {
+                        success: false,
+                        error: `TypeScript compilation failed. File not saved. Error: ${errorMsg.substring(0, 500)}`
+                    };
                 }
             } else {
                 console.log(`   ℹ️  Skipping TypeScript validation for non-code file: ${fileWrite.filePath}`);
@@ -847,16 +862,8 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
             return { success: true, output: combinedOutput };
         } catch (error: any) {
             const errorMsg = error.stdout || error.stderr || error.message;
-            const exitCode = error.code !== undefined ? ` (Exit code: ${error.code})` : '';
-            console.error(`   ❌ Command failed${exitCode}: ${errorMsg ? errorMsg.substring(0, 500) : 'No output provided'}`);
-
-            // If it's a generic failure (like just an exit code), try to provide more hint
-            let hint = '';
-            if (error.code && !errorMsg) {
-                hint = ' (Command failed silently. Check arguments or try running verbose)';
-            }
-
-            return { success: false, error: `${errorMsg || 'Command failed with no output'}${exitCode}${hint}` };
+            console.error(`   ❌ Command failed: ${errorMsg.substring(0, 500)}`);
+            return { success: false, error: errorMsg };
         }
     }
 
@@ -869,9 +876,11 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
      *
      * This approach is more robust than line-based editing because:
      *   1. Agents don't need to count lines
-     *   2. The pattern itself serves as verification
-     *   3. It's the same approach Claude Code uses successfully
-     */
+     *   2. The pattern itself serves as verification     *   3. It's the same approach Claude Code uses successfully
+      * @param fileEdit The {@link FileEditRequest} object containing the file path and edits to apply.
+      * @param agentName The name of the agent requesting the file edit.
+      * @returns A Promise that resolves to an object indicating success status and an optional error message.
+      */
     private async handleFileEdit(fileEdit: FileEditRequest, agentName: string): Promise<{ success: boolean; error?: string }> {
         console.log(`\n✏️  ${agentName} requesting file edit: ${fileEdit?.filePath || 'undefined'} `);
         console.log(`   Reason: ${fileEdit?.reason || 'No reason provided'} `);
@@ -1016,9 +1025,17 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                     console.log(`   ✅ TypeScript validation passed!`);
                 } catch (compileError: any) {
                     const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
-                    console.warn(`   ⚠️ TypeScript compilation failed, but saving file to allow incremental fixes:`);
-                    console.warn(`   ${errorMsg.substring(0, 500)}`);
-                    // We DO NOT return failure here. We allow the save to proceed.
+                    console.error(`   ❌ TypeScript compilation failed:`);
+                    console.error(`   ${errorMsg.substring(0, 500)}`);
+
+                    // Save failed attempt for debugging
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const failedPath = `${fileEdit.filePath}.failed.${timestamp}.ts`;
+                    const fs = await import('fs/promises');
+                    await fs.rename(tempPath, failedPath);
+                    console.log(`   💾 Saved failed edit to: ${failedPath}`);
+
+                    return { success: false, error: `TypeScript compilation failed:\n${errorMsg.substring(0, 500)}` };
                 }
             } else {
                 console.log(`   ℹ️  Skipping TypeScript validation for non-code file: ${fileEdit.filePath}`);

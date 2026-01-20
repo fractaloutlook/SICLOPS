@@ -188,6 +188,19 @@
 - **Integration:** Called automatically before all file operations
 - **Test Coverage:** Comprehensive test suite at `src/validation/__tests__/path-validator.test.ts`
 
+#### ESLint Validation ✅ NEW
+- **Module:** `src/eslint.config.js`
+- **Purpose:** Enforce code style, detect potential issues, and maintain code quality
+- **Features:**
+  - Integrates with TypeScript for type-aware linting
+  - Customizable rules (see `src/eslint.config.js`)
+  - Automatically runs after `fileEdit` and `fileWrite` operations
+- **Integration:** Automatically run by the orchestrator post-file operation
+- **On failure:**
+  - Changes NOT applied
+  - Failed file saved with linting errors
+  - Error message shown to next agent
+
 #### TypeScript Validation
 - **Automatic:** Every fileWrite and fileEdit
 - **Command:** `npx tsc --noEmit`

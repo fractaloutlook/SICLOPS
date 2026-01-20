@@ -1,4 +1,11 @@
-import { AgentConfig, Changes, ProcessResult, LoggableActionData, ProjectFile } from './types';
+import { AgentConfig, ProcessResult, ProjectFile } from './types';
+
+interface StateUpdateLogData {
+    timesProcessed: number;
+    productiveTurns: number;
+    totalCost: number;
+    operation: string;
+}
 import { FileUtils } from './utils/file-utils';
 import { shouldAllowAnotherTurn, getProductivitySummary } from './utils/adaptive-limits';
 
@@ -124,34 +131,36 @@ export abstract class BaseAgent {
         this.state.fileWrites++;
     }
 
-    protected async log(action: string, data: any = {}): Promise<void> {
+    protected async log(message: string, data?: unknown): Promise<void> {
         const timestamp = new Date();
         const logEntry = {
             timestamp: timestamp.toISOString(),
             agent: this.config.name,
             version: this.config.version,
-            message: action, // Renamed from 'message' to 'action'
+            message,
             data
         };
 
         await FileUtils.appendToLog(this.logPath, logEntry);
 
         // More informative console output
-        let consoleMessage = action;
-        if (action === 'State updated' && data) {
-            consoleMessage = `Call ${data.timesProcessed} (Turn ${data.productiveTurns}) | Cost $${data.totalCost.toFixed(4)}`;
-        } else if (action === 'Processed file' && data) {
+        let consoleMessage = message;
+        if (message === 'State updated' && data) {
+            const stateData = data as StateUpdateLogData;
+            consoleMessage = `Call ${stateData.timesProcessed} (Turn ${stateData.productiveTurns}) | Cost ${stateData.totalCost.toFixed(4)}`;
+        } else if (message === 'Processed file' && data) {
+            const processResultData = data as ProcessResult;
             // First print the summary of what they said
-            const summary = this.extractMiniSummary(data);
+            const summary = this.extractMiniSummary(processResultData);
             if (summary) {
                 console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${summary}`);
             }
 
             // Then print the action (who they're passing to)
-            const hasFileOps = data.fileRead || data.fileEdit || data.fileWrite;
-            const fileOpType = data.fileRead ? '📖 READ' : data.fileEdit ? '✏️ EDIT' : data.fileWrite ? '📝 WRITE' : '';
-            const consensus = data.consensus ? ` | ${data.consensus}` : '';
-            consoleMessage = hasFileOps ? `${fileOpType} → ${data.target}${consensus}` : `💬 → ${data.target}${consensus}`;
+            const hasFileOps = processResultData.fileRead || processResultData.fileEdit || processResultData.fileWrite;
+            const fileOpType = processResultData.fileRead ? '📖 READ' : processResultData.fileEdit ? '✏️ EDIT' : processResultData.fileWrite ? '📝 WRITE' : '';
+            const consensus = processResultData.consensus ? ` | ${processResultData.consensus}` : '';
+            consoleMessage = hasFileOps ? `${fileOpType} → ${processResultData.target}${consensus}` : `💬 → ${processResultData.target}${consensus}`;
         }
 
         console.log(`[${timestamp.toISOString()}] ${this.config.name}: ${consoleMessage}`);
@@ -186,19 +195,19 @@ export abstract class BaseAgent {
      * Extract a mini-summary from agent's response for console display.
      * Tries to get first meaningful sentence, max 80 chars.
      */
-    private extractMiniSummary(data: any): string | null {
+    private extractMiniSummary(data: unknown): string | null {
         // Try notes first (usually has the main point)
-        if (data.notes && typeof data.notes === 'string' && data.notes.length > 15) {
+        if ((data as ProcessResult).notes && typeof (data as ProcessResult).notes === 'string' && (data as ProcessResult).notes.length > 15) {
             return this.truncateSummary(data.notes);
         }
 
         // Try reasoning
-        if (data.reasoning && typeof data.reasoning === 'string' && data.reasoning.length > 15) {
+        if ((data as ProcessResult).reasoning && typeof (data as ProcessResult).reasoning === 'string' && (data as ProcessResult).reasoning.length > 15) {
             return this.truncateSummary(data.reasoning);
         }
 
         // Try changes.description
-        if (data.changes?.description && typeof data.changes.description === 'string' && data.changes.description.length > 15) {
+        if ((data as ProcessResult).changes?.description && typeof (data as ProcessResult).changes.description === 'string' && (data as ProcessResult).changes.description.length > 15) {
             return this.truncateSummary(data.changes.description);
         }
 

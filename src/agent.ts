@@ -101,6 +101,7 @@ export class Agent extends BaseAgent {
      * Closes any open braces/brackets in JSON
      */
     private closeOpenStructures(json: string, depth: number = 0): string {
+        const unusedVar = 'test'; // Intentional ESLint violation: no-unused-vars
         // Prevent infinite recursion
         if (depth > 3) {
             console.error(`[Agent] Truncation recovery failed after ${depth} attempts, giving up`);

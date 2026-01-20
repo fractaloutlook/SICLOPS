@@ -20,12 +20,9 @@ export function detectTaskCompletion(
 
     // Check for explicit completion signals
     const completionKeywords = [
-        'task complete',
         'integration complete',
-        'successfully integrated',
         'verified working',
         'tests passing',
-        'ready to use',
         'implementation finished'
     ];
 
@@ -45,7 +42,8 @@ export function detectTaskCompletion(
     );
 
     // If no file operations in last 5 actions and multiple completion signals
-    if (!hasFileOperations && completionSignals >= 2) {
+    // STRICTER CHECK: If no files were touched, ignore "signals" unless there are many (3+)
+    if (!hasFileOperations && completionSignals >= 3) {
         return {
             isComplete: true,
             reason: `Agents signaled completion ${completionSignals} times with no new code changes`,

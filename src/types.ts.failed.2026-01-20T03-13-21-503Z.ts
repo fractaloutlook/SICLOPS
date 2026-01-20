@@ -105,6 +105,18 @@ export interface FileGrepRequest {
     reason: string;
 }
 
+export interface LoggableActionData {
+    filePath?: string;
+    reason?: string;
+    command?: string;
+    edits?: Array<{ find: string; replace: string }>;
+    content?: string;
+    startLine?: number;
+    endLine?: number;
+    pattern?: string;
+    // Add any other properties that might be logged from an action
+}
+
 export interface CommandRequest {
     action: 'run_command';
     command: string;
@@ -155,8 +167,4 @@ export interface OrchestratorContext {
     summarizedHistory: string; // Add this line
     totalCost: number;
     humanNotes: string;
-}
-
-export interface LoggableActionData {
-    [key: string]: any;
 }

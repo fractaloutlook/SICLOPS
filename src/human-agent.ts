@@ -60,7 +60,7 @@ export class HumanAgent extends BaseAgent {
             response = JSON.parse(userInput);
         } catch (e: any) {
             // Check for @AgentName syntax (e.g., @Morgan: please review)
-            const mentionMatch = userInput.match(/^@([a-zA-Z0-9\-_]+)[:\s]*(.*)/s);
+            const mentionMatch = userInput.match(/^@([a-zA-Z0-9\-_]+)[:\s]*([\s\S]*)/);
 
             if (mentionMatch) {
                 const requestedTarget = mentionMatch[1];
@@ -92,7 +92,7 @@ export class HumanAgent extends BaseAgent {
         }
 
         // Ensure target agent is valid
-        if (!response.targetAgent || !availableTargets.includes(response.targetAgent)) {
+        if (!response.targetAgent || (response.targetAgent !== 'Orchestrator' && !availableTargets.includes(response.targetAgent))) {
             console.log(`⚠️  Target agent "${response.targetAgent}" invalid/missing. Defaulting to ${availableTargets[0]}`);
             response.targetAgent = availableTargets[0];
         }
