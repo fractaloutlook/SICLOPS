@@ -1,55 +1,5 @@
 [
   {
-    "key": "decision_1768720326893_0.2629364374519707",
-    "value": "Jordan: My previous attempts to update my notes failed due to precise pattern matching issues. I have now carefully corrected the 'find' pattern to accurately",
-    "bucket": "decision",
-    "tokens": 40,
-    "reason": "Stored from current cycle",
-    "timestamp": 1768720326893,
-    "lastAccessed": 1768720326893,
-    "ttl": 86400000
-  },
-  {
-    "key": "decision_1768720326893_0.2878640541581181",
-    "value": "Jordan: There is a critical discrepancy between Morgan's stated intent (review `path-validator.ts` for 'Code Validation Pipeline') and the content of her succ",
-    "bucket": "decision",
-    "tokens": 40,
-    "reason": "Stored from current cycle",
-    "timestamp": 1768720326893,
-    "lastAccessed": 1768720326893,
-    "ttl": 86400000
-  },
-  {
-    "key": "decision_1768720326893_0.22438004033441672",
-    "value": "Jordan: I have reviewed the 'Code Validation Pipeline' proposal in Morgan's notes and find it to be a sound MVP from a security and quality standpoint. I am p",
-    "bucket": "decision",
-    "tokens": 40,
-    "reason": "Stored from current cycle",
-    "timestamp": 1768720326893,
-    "lastAccessed": 1768720326893,
-    "ttl": 86400000
-  },
-  {
-    "key": "decision_1768720326893_0.4074018115839615",
-    "value": "Pierre: My notes have been updated to reflect the completion and successful integration of the 'Code Validation Pipeline', including Alex's documentation work",
-    "bucket": "decision",
-    "tokens": 40,
-    "reason": "Stored from current cycle",
-    "timestamp": 1768720326893,
-    "lastAccessed": 1768720326893,
-    "ttl": 86400000
-  },
-  {
-    "key": "decision_1768720326893_0.9132878449574351",
-    "value": "Pierre: My previous attempt to update my notes failed due to an incorrect 'find' pattern. I have corrected the pattern and am updating my notes to accurately ",
-    "bucket": "decision",
-    "tokens": 40,
-    "reason": "Stored from current cycle",
-    "timestamp": 1768720326893,
-    "lastAccessed": 1768720326893,
-    "ttl": 86400000
-  },
-  {
     "key": "decision_1768792885056_0.3007802573025249",
     "value": "Pierre: The 'Code Validation Pipeline' is now fully integrated into the orchestrator. I've verified that `PathValidator.validatePath` is utilized across all n",
     "bucket": "decision",
@@ -597,6 +547,56 @@
     "reason": "Stored from current cycle",
     "timestamp": 1768795880092,
     "lastAccessed": 1768795880092,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768876492159_0.4969813654165085",
+    "value": "Pierre: I agree with Morgan, Sam, Jordan, and Alex. Fixing the SharedMemoryCache tests is a crucial foundational step. From an integration and UX perspective,",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768876492159,
+    "lastAccessed": 1768876492159,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768876492159_0.1310041680137084",
+    "value": "Alex (building): My previous attempt to update my notes failed. I have now carefully updated my notebook to reflect the completion of the documentation and UX review f",
+    "bucket": "decision",
+    "tokens": 42,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768876492159,
+    "lastAccessed": 1768876492159,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768876492159_0.7265816799812801",
+    "value": "Alex (building): ✅ Successfully edited and validated notes/alex-notes.md (2 change(s))",
+    "bucket": "decision",
+    "tokens": 22,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768876492159,
+    "lastAccessed": 1768876492159,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768876492159_0.057090709489885594",
+    "value": "Pierre (building): The team has successfully implemented the agreed-upon task of fixing the SharedMemoryCache tests, which are now passing (38/38). Additionally, the com",
+    "bucket": "decision",
+    "tokens": 43,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768876492159,
+    "lastAccessed": 1768876492159,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1768876492159_0.8478750500693368",
+    "value": "Pierre (building): ✅ Successfully edited and validated notes/pierre-notes.md (1 change(s))",
+    "bucket": "decision",
+    "tokens": 23,
+    "reason": "Stored from current cycle",
+    "timestamp": 1768876492159,
+    "lastAccessed": 1768876492159,
     "ttl": 86400000
   }
 ]
