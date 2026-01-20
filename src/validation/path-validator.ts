@@ -62,7 +62,11 @@ export class PathValidator {
     const rootDir = pathParts[0];
 
     // 2. Check if the path is within allowed root directories
-    if (!this.ALLOWED_ROOT_DIRECTORIES.includes(rootDir)) {
+    // EXCEPTION: Allow specific root-level config files (package.json, .eslintrc.json, tsconfig.json)
+    const allowedRootFiles = ['package.json', '.eslintrc.json', 'tsconfig.json'];
+    const isRootConfig = allowedRootFiles.includes(normalizedPath);
+
+    if (!this.ALLOWED_ROOT_DIRECTORIES.includes(rootDir) && !isRootConfig) {
       throw new PathValidationError(`Path must be in allowed directories. Path "${filePath}" with root directory "${rootDir}" is not within an allowed root directory. Allowed: ${this.ALLOWED_ROOT_DIRECTORIES.join(', ')}.`, filePath);
     }
 
@@ -81,8 +85,7 @@ export class PathValidator {
     }
 
     // 5. Block sensitive patterns
-    if (filePath.includes('.env') || filePath.includes('node_modules') || filePath.includes('.git') ||
-      filePath.includes('package.json') || filePath.includes('tsconfig.json')) {
+    if (filePath.includes('.env') || filePath.includes('node_modules') || filePath.includes('.git')) {
       throw new PathValidationError(`Access to sensitive file or directory "${filePath}" is disallowed.`, filePath);
     }
 
