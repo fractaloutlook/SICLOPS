@@ -92,7 +92,9 @@ export class SharedMemoryCache {
   }
 
   /**
-   * Log only if VERBOSE_CACHE_LOGGING is enabled
+   * Logs messages to the console if VERBOSE_CACHE_LOGGING is enabled.
+   * This is a private helper for internal logging within the cache.
+   * @param args - The arguments to log, similar to console.log.
    */
   private log(...args: any[]): void {
     if (process.env.VERBOSE_CACHE_LOGGING === 'true') {
@@ -101,7 +103,9 @@ export class SharedMemoryCache {
   }
 
   /**
-   * Warn only if VERBOSE_CACHE_LOGGING is enabled
+   * Logs warning messages to the console if VERBOSE_CACHE_LOGGING is enabled.
+   * This is a private helper for internal warnings within the cache.
+   * @param args - The arguments to warn, similar to console.warn.
    */
   private warn(...args: any[]): void {
     if (process.env.VERBOSE_CACHE_LOGGING === 'true') {
@@ -134,7 +138,7 @@ export class SharedMemoryCache {
     
     // Check if storing in sensitive bucket would exceed its allocation
     if (bucket === 'sensitive') {
-      const currentSensitiveTokens = this.getBucketTokens('sensitive');
+      const currentSensitiveTokens = this.getBucketStats('sensitive').tokens;
       if (currentSensitiveTokens + tokens > this.SENSITIVE_TOKENS) {
         this.warn(
           `[SharedMemoryCache] STORE REJECTED: Sensitive bucket full. ` +
@@ -290,8 +294,10 @@ export class SharedMemoryCache {
   }
   
   /**
-   * Estimate token count for a string (rough approximation).
-   * Using ~4 characters per token as a heuristic.
+   * Estimates the token count for a given string using a heuristic (rough approximation).
+   * This method assumes approximately 4 characters per token.
+   * @param text - The string content to estimate tokens for.
+   * @returns The estimated number of tokens.
    */
   private estimateTokens(text: string): number {
     return Math.ceil(text.length / 4);
@@ -308,9 +314,7 @@ export class SharedMemoryCache {
    * Get token count for a specific bucket.
    */
   private getBucketTokens(bucket: BucketType): number {
-    return Array.from(this.cache.values())
-      .filter(e => e.bucket === bucket)
-      .reduce((sum, entry) => sum + entry.tokens, 0);
+    return this.getBucketStats(bucket).tokens;
   }
   
   /**

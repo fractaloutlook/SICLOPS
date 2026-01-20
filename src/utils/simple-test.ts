@@ -10,11 +10,19 @@ import { spawn } from 'child_process';
 
 const execAsync = promisify(exec);
 
+/**
+ * Represents the result of a test execution.
+ */
 export interface TestResult {
+    /** True if the test run was successful, false otherwise. */
     success: boolean;
+    /** The number of individual tests or checks that passed. */
     testsPassed: number;
+    /** The number of individual tests or checks that failed. */
     testsFailed: number;
+    /** An array of error messages encountered during the test run. */
     errors: string[];
+    /** The raw output from the test command (stdout/stderr). */
     output: string;
 }
 
@@ -256,6 +264,9 @@ export async function runCycleTests(changedFiles: string[]): Promise<TestResult>
 
             if (!sanityResult.success) {
                 console.log(`   ⚠️  Issues found in ${file}`);
+                sanityResult.errors.forEach(error => {
+                    console.error(`       - ${error}`);
+                });
             }
         }
     }
@@ -281,7 +292,7 @@ export async function runCycleTests(changedFiles: string[]): Promise<TestResult>
         }
     }
 
-    for (const testFile of testFilesToRun) {
+    for (const testFile of Array.from(testFilesToRun)) {
         const jestResult = await runJestTestFile(testFile);
         results.push(jestResult);
     }
@@ -300,12 +311,12 @@ export async function runCycleTests(changedFiles: string[]): Promise<TestResult>
     };
 }
 
-// CLI Entry Point
 /**
- * CLI Entry Point
- * This block allows the `simple-test.ts` file to be executed directly from the command line.
- * It parses command-line arguments to determine which test function to run.
- * Commands supported:
+ * CLI Entry Point.
+ * This block allows `simple-test.ts` to be executed directly from the command line.
+ * It parses arguments to determine which test function to run and outputs the result as JSON.
+ *
+ * Supported commands:
  * - `runJestTestFile <testPath>`: Runs a specific Jest test file.
  * - `runTypeCheck`: Performs a TypeScript compilation check.
  * - `runCycleTests <changedFiles>`: Runs a comprehensive test suite for a cycle, optionally for a comma-separated list of changed files.

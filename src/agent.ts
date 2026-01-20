@@ -554,7 +554,10 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                     throw new Error('No text content in response');
                 }
 
-                const cleanedText = this.cleanJsonResponse(textContent.text);
+                const cleanedText = this.cleanJsonResponse(textContent.text)
+                    .replace(/^```json\s*/, '')  // Remove leading ```json
+                    .replace(/^```\s*/, '')      // Remove leading ```
+                    .replace(/\s*```$/, '');     // Remove trailing ```
                 try {
                     response = JSON.parse(cleanedText) as ApiResponse;
                 } catch (parseError: any) {
@@ -666,9 +669,9 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 this.state.consecutiveSelfPasses = 0;
             }
 
-            if (!targetAgent || !availableTargets.includes(targetAgent)) {
-                console.warn(`[Agent:${this.config.name}] Invalid target "${targetAgent}", defaulting to ${availableTargets[0]}`);
-                targetAgent = availableTargets[0];
+            if (!targetAgent || (targetAgent !== 'Orchestrator' && !availableTargets.includes(targetAgent))) {
+                console.warn(`[Agent:${this.config.name}] Invalid target "${targetAgent}", defaulting to ${this.config.name}`);
+                targetAgent = this.config.name;
             }
 
             await this.log('Processed file', {

@@ -16,17 +16,23 @@ import { SharedMemoryCache, BucketType, CacheEntry, CacheStats } from '../shared
 describe('SharedMemoryCache', () => {
   let cache: SharedMemoryCache;
 
+  beforeAll(() => {
+    jest.useFakeTimers(); // Enable fake timers for all tests
+  });
+
   beforeEach(() => {
-    cache = new SharedMemoryCache();
+     cache = new SharedMemoryCache();
     // Enable verbose logging for tests to see what's happening
     process.env.VERBOSE_CACHE_LOGGING = 'true';
     // Suppress console logs during tests
     jest.spyOn(console, 'log').mockImplementation(() => { });
     jest.spyOn(console, 'warn').mockImplementation(() => { });
-  });
+  });   afterEach(() => {
+     jest.restoreAllMocks();
+   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
+  afterAll(() => {
+    jest.useRealTimers(); // Restore real timers after all tests
   });
 
   describe('Basic Operations', () => {
@@ -55,9 +61,7 @@ describe('SharedMemoryCache', () => {
       expect(cache.evict('nonexistent')).toBe(false);
     });
 
-    test('should pass a simple verification test after orchestrator fix', () => {
-      expect(true).toBe(true);
-    });
+
   });
 
   describe('Three-Bucket Classification', () => {
@@ -97,7 +101,7 @@ describe('SharedMemoryCache', () => {
       expect(cache.retrieve('key1')).toBe('value1');
     });
 
-    test('CRITICAL: reason should NOT affect eviction order', async () => {
+    test('CRITICAL: reason should NOT affect eviction order', () => { // Removed async keyword
       // Fill cache to trigger eviction
       const largeValue = 'x'.repeat(20000); // ~5000 tokens
 
@@ -106,12 +110,12 @@ describe('SharedMemoryCache', () => {
       cache.store('with-reason', largeValue, 'transient', 'CRITICAL DATA');
       cache.store('another', largeValue, 'transient');
 
-      // Wait a bit to ensure timestamp differs
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Advance timers to ensure timestamp differs
+      jest.advanceTimersByTime(10); // Replaced setTimeout
       // Access 'with-reason' to make it recently used
       cache.retrieve('with-reason');
-      // Wait again
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Advance timers again
+      jest.advanceTimersByTime(10); // Replaced setTimeout
 
       // Add more data to trigger eviction - 'no-reason' should evict first (LRU)
       cache.store('trigger1', largeValue, 'transient');
@@ -253,14 +257,7 @@ describe('SharedMemoryCache', () => {
   });
 
   describe('TTL Expiration', () => {
-    beforeEach(() => {
-      jest.useFakeTimers();
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
+    // Fake timers are now enabled globally for this test suite
     test('should expire transient entries after 1 hour', () => {
       cache.store('transient-key', 'value', 'transient');
 

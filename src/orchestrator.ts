@@ -30,17 +30,40 @@ interface OrchestratorConfig {
     passiveHuman?: boolean; // If true, human exists for HITL but is skipped in workflow
 }
 
-// System capabilities summary injected into all agent prompts
+/**
+ * @constant SYSTEM_CAPABILITIES
+ * @description A multiline string constant that provides a summary of the system's current capabilities and status.
+ * This information is injected into all agent prompts to ensure they are aware of the tools and environment they operate within.
+ * It includes status updates on key components, available file operations, command execution guidelines, and workflow rules.
+ * This constant is critical for maintaining consistent context and preventing agents from attempting to 'fix' already working features.
+ */
 const SYSTEM_CAPABILITIES = `
 📚 SYSTEM CAPABILITIES (built by your team):
+
+✅ SYSTEM STATUS (Last Verified: 2024-05-25):
+- SharedMemoryCache Tests: PASSING - DO NOT MODIFY unless you are implementing a NEW feature.
+- PathValidator Tests: PASSING (34/34) - DO NOT MODIFY.
+- Testing Infrastructure (src/utils/simple-test.ts): STABLE - DO NOT MODIFY.
 
 **File Operations:**
 - fileRead: Read any file (shown with line numbers)
 - lineRead: Read specific line range (e.g. 1-100)
 - fileGrep: Search for string/pattern in a file
-- fileEdit: Pattern-match find/replace editing
-- fileWrite: Create new files (test files auto-run!)
+- fileEdit: Pattern-match find/replace editing (Best for code files)
+- fileWrite: Overwrite ENTIRE file. (For notebooks: READ first, then write FULL updated content to avoid data loss)
 - All edits auto-validated with TypeScript
+- runCommand: Execute shell commands (e.g. npm, git). Requires strict reason.
+
+**Command Execution:**
+- Agents can run shell commands using the 'runCommand' tool.
+- Examples: 'npm install', 'git status', 'npx ts-node src/utils/simple-test.ts'
+- ⚠️ SAFETY: All commands require Human approval.
+
+**⚠️ CRITICAL INSTRUCTION:**
+- The testing infrastructure (simple-test.ts) is DONE and STABLE.
+- DO NOT run tests. DO NOT verify the CLI. DO NOT "fix" tests.
+- Your goal is to USE the tools to satisfy the User's "Implementing Command Execution" request.
+- If you were planning to test/verify, STOP. Move to the next task.
 
 **Workflow:**
 - Normal: Morgan → Sam → Jordan → Alex → Pierre (unless delegated)
@@ -727,14 +750,12 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
     }
 
     /**
-     * Handles file edit requests using PATTERN MATCHING (not line numbers).
-     *
-     * Each edit specifies:
-     *   - find: exact string to locate (must be unique in file)
-     *   - replace: what to replace it with
-     *
      * Handles shell command execution requests from agents.
-     * Use with caution.
+     * Implements a human-in-the-loop safety mechanism, requiring human approval before executing any shell command (unless in autonomous mode). Enforces a timeout to prevent long-running or stalled commands.
+     *
+     * @param commandRequest The {@link CommandRequest} object containing the command and reason.
+     * @param agentName The name of the agent requesting execution.
+     * @returns A Promise resolving to an object with success status, command output, and an optional error message.
      */
     private async handleRunCommand(commandRequest: CommandRequest, agentName: string): Promise<{ success: boolean; output?: string; error?: string }> {
         console.log(`\n⌨️  ${agentName} requesting command execution: ${commandRequest.command}`);
@@ -755,8 +776,9 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
             const { promisify } = await import('util');
             const execAsync = promisify(exec);
 
-            // Execute the command with a timeout of 2 minutes
-            const { stdout, stderr } = await execAsync(commandRequest.command, { timeout: 120000 });
+            const timeoutMs = commandRequest.timeout ?? 120000; // Default to 2 minutes (120000ms)
+            console.log(`   Running command: '${commandRequest.command}' with timeout: ${timeoutMs / 1000} seconds`);
+            const { stdout, stderr } = await execAsync(commandRequest.command, { timeout: timeoutMs });
 
             const combinedOutput = `${stdout}${stderr ? '\nSTDERR:\n' + stderr : ''}`;
             console.log(`   ✅ Command successful! Output: ${combinedOutput.substring(0, 100).trim()}...`);

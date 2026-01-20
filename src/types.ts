@@ -109,6 +109,7 @@ export interface CommandRequest {
     action: 'run_command';
     command: string;
     reason: string;
+    timeout?: number; // Optional timeout in milliseconds
 }
 
 export interface CodeChange {
