@@ -48,5 +48,55 @@
     "timestamp": 1769731653142,
     "lastAccessed": 1769731653142,
     "ttl": 86400000
+  },
+  {
+    "key": "decision_1769731723047_0.010312388648465731",
+    "value": "Alex: 📖 File content from notes/alex-notes.md (36 lines):",
+    "bucket": "decision",
+    "tokens": 15,
+    "reason": "Stored from current cycle",
+    "timestamp": 1769731723047,
+    "lastAccessed": 1769731723047,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1769731723047_0.1824698882510909",
+    "value": "Alex: I am correcting the `fileEdit` that failed in the previous turn to accurately reflect the team's consensus on implementing an 'Error Recovery System (",
+    "bucket": "decision",
+    "tokens": 39,
+    "reason": "Stored from current cycle",
+    "timestamp": 1769731723047,
+    "lastAccessed": 1769731723047,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1769731723047_0.0678388165697037",
+    "value": "Alex: ✅ Successfully edited and validated notes/alex-notes.md (2 change(s))",
+    "bucket": "decision",
+    "tokens": 19,
+    "reason": "Stored from current cycle",
+    "timestamp": 1769731723047,
+    "lastAccessed": 1769731723047,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1769731723047_0.6990458430355926",
+    "value": "Pierre: I have updated my notebook to reflect the team's consensus on implementing an 'Error Recovery System (retry with backoff)'. My notes now include my sp",
+    "bucket": "decision",
+    "tokens": 40,
+    "reason": "Stored from current cycle",
+    "timestamp": 1769731723047,
+    "lastAccessed": 1769731723047,
+    "ttl": 86400000
+  },
+  {
+    "key": "decision_1769731723047_0.6763818331787981",
+    "value": "Pierre: ✅ Successfully edited and validated notes/pierre-notes.md (7 change(s))",
+    "bucket": "decision",
+    "tokens": 20,
+    "reason": "Stored from current cycle",
+    "timestamp": 1769731723047,
+    "lastAccessed": 1769731723047,
+    "ttl": 86400000
   }
 ]
