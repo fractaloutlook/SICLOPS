@@ -14,47 +14,35 @@
 
 | Field | Value |
 |-------|-------|
-| **lastCycleDid** | Alex completed documentation review for Agent Handoff Protocol in `docs/AGENT_GUIDE.md`. |
-| **whatIWasDoing** | Performing final review of Agent Handoff Protocol implementation and scope adherence. |
-| **currentBlockers** | None. The implementation appears to be substantially complete. |
-| **nextSteps** | Signal consensus for task completion. |
-| **lastUpdated** | 2024-05-31 (Agent Handoff Protocol review complete) |
+| **lastCycleDid** | The team has reached consensus on implementing an 'Error Recovery System (retry with backoff)'. |
+| **whatIWasDoing** | Reviewing the 'Error Recovery System (retry with backoff)' proposal from an integration and UX perspective. |
+| **currentBlockers** | None. Proceeding to define implementation details for the Error Recovery System. |
+| **nextSteps** | Outline key integration and UX considerations for the 'Error Recovery System (retry with backoff)'. |
+| **lastUpdated** | 2024-05-31 (Error Recovery System consensus) |
 
 ---
 
 ## Current Cycle Notes
 
-### Proposed Feature & Rationale (Discussion Phase)
-**Proposed Feature:** Fix/improve existing features - Ensure SharedMemoryCache tests are running and passing.
-**Reasoning:** The SharedMemoryCache is a foundational component for agent collaboration and context sharing. As an Integration Specialist, I prioritize stable and reliable building blocks. If its tests aren't running, we can't trust its functionality. Ensuring its stability now will prevent integration headaches and potential data consistency issues later, aligning with building a robust foundation in an MVP fashion. This directly helps the system 'maintain context across restarts' and 'coordinate better as a team' by ensuring the shared memory actually works as intended.
+### Proposed Feature: Error Recovery System (retry with backoff)
+**Consensus:** Agreed by Morgan, Sam, Jordan, and Alex.
 
-**Task Analysis: Testing Infrastructure**
+**Integration & UX Considerations:**
+- **Orchestrator Integration:** The retry logic will need to be carefully integrated into the `orchestrator.ts` around agent actions and command execution. This will likely involve a wrapper function or a modified execution flow.
+- **State Management during Retries:** How will the system handle state if a command partially succeeds or fails? Should state be rolled back before a retry, or should the retry mechanism attempt to resume from the point of failure? This impacts data consistency and agent context.
+- **Visibility and Feedback (Agent UX):** Agents (and the human consultant) need clear feedback on when an action is being retried, why, and the outcome of the retry (success after X attempts, or final failure). This is critical for debugging and understanding system behavior.
+- **Configurability:** Parameters like maximum retry attempts, backoff strategy (e.g., exponential), and specific error types that trigger retries should be configurable, possibly in `src/config.ts` or as part of the orchestrator's internal state.
+- **Preventing Loops/Resource Exhaustion:** As Jordan noted, the system must have clear termination conditions to avoid infinite retry loops or excessive resource consumption. This implies a maximum retry limit and potentially a circuit breaker pattern.
+- **Impact on Turn Management:** How will retries affect an agent's allotted turns? A retry should ideally not consume an additional 'turn' in the current system, but rather be part of the single action's execution. If an action is retried multiple times within a single 'turn', it needs to be transparent to the agent counting turns.
 
-From approved design history, I see:
-1. Code Validation Pipeline is COMPLETE (path-validator with 60 test cases)
-2. Testing Infrastructure mentioned but unclear scope
-
-**What EXISTS:**
-- ✅ Path validator (src/validation/path-validator.ts) - DONE
-- ✅ Path validator integration in orchestrator - DONE (lines 8, 252-266, 464-479, 529-544)
-- ✅ Test infrastructure exists (runCycleTests, auto-test execution)
-- ✅ TypeScript compilation validation
-
-**SCOPE ASSESSMENT:**
-The consensus decisions show:
-- "Security review complete. Path-validator integration meets all MVP security requirements" (Jordan)
-- "Path validator integration is complete and production-ready" (Alex)
-- "Code Validation Pipeline is feature-complete and production-ready" (Pierre - that's me!)
-
-The 'Code Validation Pipeline' (including global TypeScript compilation, ESLint, and `src/validation/path-validator.ts` and its integration) is fully implemented, integrated, and documented. The ESLint configuration is in place, and validation is functional.
+**Alignment with Goals:** This feature strongly aligns with `Function longer without human intervention` and `Recover from errors gracefully`. It enhances overall system robustness, which is crucial for building a reliable self-improving framework.
 
 ---
 
 ## Scope Observations
 
-- ✅ Resolved: The 'Code Validation Pipeline' (TypeScript compilation, ESLint, PathValidator, documentation) is fully implemented and validated and meets developer experience standards.
-- ✅ Good: Path validator has comprehensive coverage (60 test cases per consensus)
-- ✅ Good: Auto-test execution already working in orchestrator
+- ✅ Good: The 'Error Recovery System' directly addresses critical system robustness without introducing unnecessary complexity, aligning with MVP principles.
+- ⚠️ Watch for over-engineering the retry logic; start simple (e.g., fixed number of retries with exponential backoff for specific error types) and iterate.
 
 ---
 
