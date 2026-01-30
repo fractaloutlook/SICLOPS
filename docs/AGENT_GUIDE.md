@@ -172,16 +172,42 @@ export const AGENT_WORKFLOW_ORDER = ['Morgan', 'Sam', 'Jordan', 'Alex', 'Riley',
 
 ---
 
+### 6. Agent Handoff Protocol
+
+To ensure clear communication and maintain workflow, all agent turns **must** specify a `targetAgent` and `reasoning` in the JSON output.
+
+**`targetAgent` field:**
+- **Purpose:** Specifies which agent will receive the turn next.
+- **Valid Values:**
+    - Any agent name from `AGENT_WORKFLOW_ORDER` (e.g., "Morgan", "Sam", "Jordan", "Alex", "Pierre").
+    - "Orchestrator" to signal the end of the current round of implementation. This is typically used when the agreed-upon task is complete.
+- **Validation:** The system validates that the `targetAgent` is a recognized agent in the workflow or "Orchestrator". An invalid name will result in the turn defaulting to the next agent in `AGENT_WORKFLOW_ORDER`.
+
+**`reasoning` field:**
+- **Purpose:** A brief, clear explanation of why you made the changes in your turn and why you are passing to the chosen `targetAgent`.
+- **Requirement:** This field is mandatory for every turn.
+
+**Example:**
+```json
+{
+  "fileEdit": { /* ... */ },
+  "targetAgent": "Sam",
+  "reasoning": "Implemented the core logic for X. Passing to Sam for test review."
+}
+```
+---
+
 ## How to Make Changes Safely
 
 ### Step 1: Read First
 ```json
 {
   "fileRead": {
-    "action": "read_file",
     "filePath": "src/config.ts",
     "reason": "Need to see current configuration before proposing changes"
-  }
+  },
+  "targetAgent": "Self/Next",
+  "reasoning": "Reading file to understand current state."
 }
 ```
 
@@ -194,14 +220,15 @@ export const AGENT_WORKFLOW_ORDER = ['Morgan', 'Sam', 'Jordan', 'Alex', 'Riley',
 ```json
 {
   "fileEdit": {
-    "action": "edit_file",
     "filePath": "src/config.ts",
     "edits": [{
       "find": "role: 'Lead Developer'",
       "replace": "role: 'Infrastructure Specialist'"
     }],
     "reason": "Refining Morgan's focus based on team discussion"
-  }
+  },
+  "targetAgent": "Jordan",
+  "reasoning": "Updated config. Jordan, please review the change for correctness."
 }
 ```
 

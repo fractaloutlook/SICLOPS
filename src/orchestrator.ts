@@ -19,6 +19,19 @@ import { runCycleTests } from './utils/simple-test';
 import * as fs from 'fs';
 import { ESLint } from 'eslint';
 
+/**
+ * @interface OrchestratorConfig
+ * @description Configuration interface for the Orchestrator, defining runtime parameters and operational modes.
+ * @property {number} maxCycles - The maximum number of cycles the orchestrator will run before stopping.
+ * @property {string} logDirectory - The directory path where all cycle logs and state files will be stored.
+ * @property {string} costSummaryPath - The file path for logging detailed cost summaries.
+ * @property {boolean} [simulationMode] - If true, the orchestrator runs in a simulation mode, using predefined agent responses.
+ * @property {boolean} [conversationMode] - If true, the orchestrator facilitates team discussions, focusing on text-based communication.
+ * @property {boolean} [requireConsensus] - If false, agents operate in a sequential workflow; otherwise, they debate to reach consensus.
+ * @property {string} [humanComment] - A high-level direction or query provided by a human user via the command line.
+ * @property {boolean} [noHuman] - If true, the human agent is disabled, and command safety checks are auto-approved.
+ * @property {boolean} [passiveHuman] - If true, the human agent is enabled for Human-in-the-Loop (HITL) security checks only, skipped in regular workflow.
+ */
 interface OrchestratorConfig {
     maxCycles: number;
     logDirectory: string;
@@ -70,8 +83,8 @@ const SYSTEM_CAPABILITIES = `
 
 **Workflow:**
 - Normal: Morgan → Sam → Jordan → Alex → Pierre (unless delegated)
-- Delegation: Set targetAgent to any team member to pass directly (works in all modes)
-- End Round: Set targetAgent="Orchestrator" to conclude your team's turn early
+- Delegation: Set targetAgent to an agent name from AGENT_WORKFLOW_ORDER or 'Orchestrator' to pass directly, and ALWAYS provide 'reasoning' (works in all modes)
+- End Round: Set targetAgent="Orchestrator" to conclude your team's turn early, and ALWAYS provide 'reasoning'
 - Self-pass: Up to 3 times for multi-step work
 - Return for fix: Set returnForFix=true to pass backwards when you find bugs
 
@@ -90,6 +103,12 @@ const SYSTEM_CAPABILITIES = `
 - docs/AGENT_GUIDE.md - How to modify the system
 `;
 
+/**
+ * @class Orchestrator
+ * @description The core class responsible for managing and coordinating the multi-agent system (SICLOPS).
+ * It orchestrates cycles, handles agent interactions, manages file operations, persists state, and enforces workflow rules.
+ * The Orchestrator acts as the central hub for the self-improving collective, enabling agents to build and refine themselves.
+ */
 export class Orchestrator {
     private agents: Map<string, BaseAgent>;
     private anthropicClient: Anthropic;
@@ -113,6 +132,13 @@ export class Orchestrator {
         this.initializeAgents();
     }
 
+    /**
+     * @method initializeAgents
+     * @description Initializes all agents based on the `AGENT_CONFIGS` defined in `src/config.ts`.
+     * It sets up AI agents with their respective LLM clients (Anthropic, OpenAI, Google) and configures the HumanAgent if enabled.
+     * Handles autonomous and passive human modes, ensuring the correct agents are instantiated for the current run.
+     * @private
+     */
     private initializeAgents(): void {
         if (this.config.noHuman) {
             console.log('🤖 AUTONOMOUS MODE: Human agent disabled by -noHuman flag.');
@@ -159,6 +185,8 @@ export class Orchestrator {
      * Determine if we should use consensus mode based on current phase.
      * - Discussion phase: Use consensus (debate, vote)
      * - Implementation phase: Use sequential workflow
+     * @returns {boolean} True if consensus mode should be used (discussion phase), false otherwise (implementation phase).
+     * @private
      */
     private shouldUseConsensus(): boolean {
         // Use consensus for discussion phase, sequential for implementation
@@ -169,14 +197,36 @@ export class Orchestrator {
     // CONTEXT MANAGEMENT (Phase 1: State Persistence)
     // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * @method getContextPath
+     * @description Returns the file path for the orchestrator's context JSON file.
+     * This file stores persistent state across runs, including discussion summaries, code changes, and agent states.
+     * @returns {string} The full path to the orchestrator-context.json file.
+     * @private
+     */
     private getContextPath(): string {
         return `${this.config.logDirectory}/../state/orchestrator-context.json`;
     }
 
+    /**
+     * @method getCachePath
+     * @description Returns the file path for the shared memory cache JSON file.
+     * This file stores the state of the `SharedMemoryCache` for persistence across runs.
+     * @returns {string} The full path to the shared-cache.json file.
+     * @private
+     */
     private getCachePath(): string {
         return `${this.config.logDirectory}/../state/shared-cache.json`;
     }
 
+    /**
+     * @method saveSharedCache
+     * @description Asynchronously saves the current state of the `SharedMemoryCache` to a JSON file.
+     * This ensures that cached decisions and context are preserved between orchestrator runs.
+     * Logs success or failure to the console.
+     * @returns {Promise<void>} A Promise that resolves when the cache has been saved.
+     * @private
+     */
     async saveSharedCache(): Promise<void> {
         try {
             const cachePath = this.getCachePath();
@@ -188,6 +238,14 @@ export class Orchestrator {
         }
     }
 
+    /**
+     * @method loadSharedCache
+     * @description Asynchronously loads the `SharedMemoryCache` state from a JSON file.
+     * If the file does not exist, the cache starts fresh. Logs the number of loaded entries or an error.
+     * Key decisions loaded from previous runs are stored in the shared cache to provide historical context to agents.
+     * @returns {Promise<void>} A Promise that resolves when the cache has been loaded.
+     * @private
+     */
     async loadSharedCache(): Promise<void> {
         try {
             const cachePath = this.getCachePath();
@@ -209,6 +267,15 @@ export class Orchestrator {
         }
     }
 
+    /**
+     * @method loadContext
+     * @description Asynchronously loads the orchestrator's `OrchestratorContext` from its persistent JSON file.
+     * If no context file exists, it returns null, indicating a fresh start. It also loads previous key decisions
+     * into the `SharedMemoryCache` to prime agents with historical context.
+     * @param {boolean} [silent=true] - If true, suppresses console logging about context loading.
+     * @returns {Promise<OrchestratorContext | null>} A Promise that resolves to the loaded context or null if no context exists.
+     * @private
+     */
     async loadContext(silent: boolean = true): Promise<OrchestratorContext | null> {
         try {
             const contextPath = this.getContextPath();
@@ -243,6 +310,15 @@ export class Orchestrator {
         }
     }
 
+    /**
+     * @method saveContext
+     * @description Asynchronously saves the current `OrchestratorContext` to its persistent JSON file.
+     * This method also performs context summarization if the history becomes too large, reducing token usage
+     * for subsequent agent prompts while preserving key information.
+     * @param {OrchestratorContext} context - The context object to be saved.
+     * @returns {Promise<void>} A Promise that resolves when the context has been saved.
+     * @private
+     */
     async saveContext(context: OrchestratorContext): Promise<void> {
         const contextPath = this.getContextPath();
         await FileUtils.ensureDir(`${this.config.logDirectory}/../state`);
@@ -263,7 +339,7 @@ export class Orchestrator {
      * This method acts as a quality gate, ensuring that all code changes, accumulated over a cycle,
      * are TypeScript-clean before proceeding to further testing or committing.
      * @returns A Promise that resolves to an object indicating the success status of the compilation
-     * and an optional error message if compilation fails.
+     * @returns {Promise<{ success: boolean; error?: string }>} A Promise that resolves to an object indicating the success status of the compilation and an optional error message if compilation fails.
      */
     private async runTypeScriptValidation(): Promise<{ success: boolean; error?: string }> {
         console.log(`\n🔍 Running global TypeScript compilation validation...`);
@@ -287,16 +363,7 @@ export class Orchestrator {
      * Runs ESLint validation across the entire project to enforce code style and catch potential issues.
      * This method acts as a quality gate, ensuring that all code changes adhere to defined linting rules.
      * @returns A Promise that resolves to an object indicating the success status of the linting
-     * and an optional error message if linting fails.
-     */
-    /**
-     * Runs ESLint validation across the entire project to enforce code style and catch potential issues.
-     * This method acts as a quality gate, ensuring that all code changes adhere to defined linting rules.
-     * It uses the ESLint programmatic API to lint TypeScript files in the 'src' directory.
-     * Results, including errors and warnings, are formatted using the 'stylish' formatter.
-     * For strict quality, both errors and warnings are considered failures.
-     * @returns A Promise that resolves to an object indicating the success status of the linting
-     * and an optional error message if linting fails.
+     * @returns {Promise<{ success: boolean; error?: string }>} A Promise that resolves to an object indicating the success status of the linting and an optional error message if linting fails.
      */
     private async runESLintValidation(): Promise<{ success: boolean; error?: string }> {
         console.log(`\n🔍 Running ESLint code style validation...`);
@@ -331,6 +398,13 @@ export class Orchestrator {
         }
     }
 
+    /**
+     * @method initializeContext
+     * @description Initializes a fresh `OrchestratorContext` object with default values for a new run.
+     * This includes setting up discussion summaries, code change tracking, agent states, and initial actions.
+     * It then saves this new context to disk.
+     * @returns {Promise<OrchestratorContext>} A Promise that resolves to the newly initialized context.
+     */
     async initializeContext(): Promise<OrchestratorContext> {
         const context: OrchestratorContext = {
             version: 'v1.0',
@@ -362,6 +436,14 @@ export class Orchestrator {
         return context;
     }
 
+    /**
+     * @method updateContext
+     * @description Updates the orchestrator's `OrchestratorContext` with partial changes.
+     * If no context exists, it initializes a new one. This method is used to persist changes
+     * to the orchestrator's state throughout its operation.
+     * @param {Partial<OrchestratorContext>} updates - A partial `OrchestratorContext` object containing the fields to update.
+     * @returns {Promise<void>} A Promise that resolves when the context has been updated and saved.
+     */
     async updateContext(updates: Partial<OrchestratorContext>): Promise<void> {
         let context = await this.loadContext();
         if (!context) {
@@ -373,6 +455,15 @@ export class Orchestrator {
         await this.saveContext(context);
     }
 
+    /**
+     * @method generateBriefing
+     * @description Generates a comprehensive briefing string for the human user, summarizing the current state
+     * of the orchestrator, including run number, phase, discussion topic, key decisions, consensus status, and agent states.
+     * This briefing provides an at-a-glance overview of the system's progress.
+     * @param {OrchestratorContext} context - The current orchestrator context.
+     * @returns {string} A formatted string containing the briefing.
+     * @private
+     */
     generateBriefing(context: OrchestratorContext): string {
         const lastRun = context.history[context.history.length - 1];
         const agentList = Object.entries(context.agentStates)
@@ -539,10 +630,11 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
                 try {
                     const { spawn } = await import('child_process');
                     const jestArgs = ['jest', '--config', 'jest.config.js', testFilePath];
-                    const command = `npx ${jestArgs.join(' ')}`;
-                    const child = spawn(command, {
-                        timeout: 60000,
-                        shell: true
+                    // IMPORTANT: When shell: false (default), the command is the executable, and arguments are passed as an array.
+                    // This prevents shell injection vulnerabilities by avoiding shell interpretation of agent-controlled input.
+                    const child = spawn('npx', jestArgs, {
+                        timeout: 60000
+                        // shell: false is the default and preferred for security
                     });
 
                     const stdoutBuffer: string[] = [];
@@ -579,8 +671,11 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
     }
 
     /**
-     * Auto-run a test file and report results.
-     * This happens automatically when test files are written.
+     * @method runTestFile
+     * @description Automatically executes a specified test file (e.g., using Jest or a custom test runner) and logs its results. This method is typically invoked after an agent successfully writes a new test file, ensuring immediate feedback on its validity.
+     * @param {string} testPath - The full path to the test file to be executed.
+     * @param {string} agentName - The name of the agent who initiated the test file write.
+     * @returns {Promise<void>} A Promise that resolves when the test execution is complete, regardless of pass/fail status. Errors are logged internally.
      */
     private async runTestFile(testPath: string, agentName: string): Promise<void> {
         console.log(`\n🧪 ${agentName} wrote a test file - running automatically...`);
@@ -618,7 +713,11 @@ If you intended to REPLACE the entire file: Delete it first using a shell comman
     /**
      * Format file content with line numbers for agent display.
      * This allows agents to reference specific locations even though
-     * edits use pattern matching (not line numbers).
+     * @method formatWithLineNumbers
+     * @description Formats a given string of file content by prepending line numbers to each line. This enhances readability for agents, allowing them to refer to specific code sections easily, even though file edits are pattern-based.
+     * @param {string} content - The raw string content of the file.
+     * @param {number} [startingLine=1] - The starting line number for the formatting (defaults to 1).
+     * @returns {string} The formatted file content with line numbers.
      */
     private formatWithLineNumbers(content: string, startingLine: number = 1): string {
         const lines = content.split('\n');
@@ -1375,7 +1474,10 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Clean up failed compilation files (.failed.ts) to keep workspace tidy.
+     * @method cleanupFailedFiles
+     * @description Cleans up temporary '.failed.ts' files generated during compilation failures.
+     * @returns {Promise<void>}
+     * @private
      */
     private async cleanupFailedFiles(): Promise<void> {
         try {
@@ -2181,40 +2283,38 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             if (editOrWriteFailed && currentAgent.canProcess()) {
                 nextAgent = currentAgent;
             } else if (!this.shouldUseConsensus()) {
-                // Check if agent is requesting to return backwards for fix
                 if (result.returnForFix) {
                     console.log(`🔙 ${currentAgent.getName()} requesting return for fix → ${result.targetAgent}`);
-                    nextAgent = this.agents.get(result.targetAgent) || null;
-                    if (!nextAgent) {
-                        console.warn(`⚠️  Target agent ${result.targetAgent} not found, continuing workflow normally`);
-                        nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
-                    } else if (!nextAgent.canProcess()) {
-                        console.warn(`⚠️  Target agent ${result.targetAgent} cannot process, continuing workflow normally`);
+                    const targetAgentForFix = this.agents.get(result.targetAgent);
+                    if (targetAgentForFix && targetAgentForFix.canProcess()) {
+                        nextAgent = targetAgentForFix;
+                    } else {
+                        console.warn(`⚠️  Target agent '${result.targetAgent}' cannot process or not found for 'returnForFix'. Continuing workflow normally.`);
                         nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
                     }
-                }
-                // Check if agent passed to Orchestrator to end round early
-                else if (result.targetAgent === 'Orchestrator') {
-                    console.log(`\n🎯 ${currentAgent.getName()} passed to Orchestrator - ending round early.`);
-                    break;
-                }
-                // Check if agent is self-passing for multi-step work
-                else if (result.targetAgent === currentAgent.getName()) {
-                    nextAgent = currentAgent;
-                    console.log(`🔄 ${currentAgent.getName()} self-passing for multi-step work`);
-                }
-                // Check if agent explicitly delegated to someone else
-                else if (result.targetAgent && result.targetAgent !== currentAgent.getName() && this.agents.has(result.targetAgent)) {
-                    const requestedAgent: BaseAgent = this.agents.get(result.targetAgent)!;
-                    if (requestedAgent.canProcess()) {
-                        nextAgent = requestedAgent;
-                        console.log(`🎯 ${currentAgent.getName()} explicitly delegated to ${result.targetAgent}`);
+                } else if (result.targetAgent) {
+                    // Handle explicit targetAgent requests
+                    if (result.targetAgent === 'Orchestrator') {
+                        console.log(`\n🎯 ${currentAgent.getName()} passed to Orchestrator - ending round early.`);
+                        break; // Exits the loop, ending the cycle
+                    } else if (result.targetAgent === currentAgent.getName()) {
+                        nextAgent = currentAgent;
+                        console.log(`🔄 ${currentAgent.getName()} self-passing for multi-step work`);
+                    } else if (this.isValidAgentName(result.targetAgent)) {
+                        const requestedAgent = this.agents.get(result.targetAgent);
+                        if (requestedAgent && requestedAgent.canProcess()) {
+                            nextAgent = requestedAgent;
+                            console.log(`🎯 ${currentAgent.getName()} explicitly delegated to ${result.targetAgent}`);
+                        } else {
+                            console.warn(`⚠️  Target agent '${result.targetAgent}' is valid but cannot process (exhausted or not found). Continuing workflow normally.`);
+                            nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
+                        }
                     } else {
-                        console.warn(`⚠️  Target agent ${result.targetAgent} cannot process, continuing workflow normally`);
+                        console.warn(`⚠️  ${currentAgent.getName()} specified an INVALID 'targetAgent': "${result.targetAgent}". This agent does not exist in the workflow order. Continuing to next agent in sequence.`);
                         nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
                     }
                 } else {
-                    // Fixed workflow order when passing to others
+                    // No specific targetAgent, proceed in fixed workflow order
                     nextAgent = this.getNextAgentInWorkflow(currentAgent.getName(), availableTargets);
                     if (!nextAgent) {
                         console.log(`✅ Workflow complete - all agents processed in order`);
@@ -2239,27 +2339,45 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
                     break;
                 }
 
-                // Agent chose a specific team member
-                nextAgent = this.agents.get(result.targetAgent) || null;
-                if (!nextAgent) {
-                    await this.logCycle(cyclePath, 'Invalid target agent selected', {
-                        requestedAgent: result.targetAgent,
+                // Validate targetAgent name is valid
+                if (result.targetAgent && !this.isValidAgentName(result.targetAgent)) {
+                    await this.logCycle(cyclePath, 'Invalid target agent specified in consensus mode', {
+                        requestingAgent: currentAgent.getName(),
+                        invalidTarget: result.targetAgent,
                         availableAgents: Array.from(this.agents.keys()),
                         availableTargets
                     });
-                    console.log(`⚠️  ${currentAgent.getName()} selected unavailable agent "${result.targetAgent}".`);
-                    console.log(`   Available options: ${availableTargets.filter(a => a !== 'Orchestrator').join(', ')}`);
-                    console.log(`   Ending round to avoid confusion.`);
-                    break;
-                }
+                    console.warn(`⚠️  ${currentAgent.getName()} specified an INVALID 'targetAgent': "${result.targetAgent}". This agent does not exist in the workflow order.`);
+                    // Fallback: pick a random available agent who can process or end cycle if none
+                    const validAvailableTargets = availableTargets.filter(a => a !== 'Orchestrator');
+                    nextAgent = this.getRandomAvailableAgent(validAvailableTargets);
+                    if (!nextAgent) {
+                        console.log(`   No other available agents to delegate to. Ending round.`);
+                        break;
+                    }
+                    console.log(`   Delegating to random available agent: ${nextAgent.getName()} instead.`);
+                } else {
+                    // Agent chose a specific valid team member
+                    nextAgent = this.agents.get(result.targetAgent) || null;
+                    // It should not be null if isValidAgentName passed, but for safety.
+                    if (!nextAgent) {
+                        await this.logCycle(cyclePath, 'Target agent object not found after validation', {
+                            requestedAgent: result.targetAgent,
+                            availableAgents: Array.from(this.agents.keys()),
+                            availableTargets
+                        });
+                        console.error(`❌ CRITICAL: Valid target agent "${result.targetAgent}" not found in agent map. Ending round.`);
+                        break;
+                    }
 
-                // Check if the target agent can still process
-                if (!nextAgent.canProcess()) {
-                    console.log(`⚠️  ${currentAgent.getName()} selected ${result.targetAgent}, but they're out of turns.`);
-                    console.log(`   ${result.targetAgent} has exhausted their turns this round.`);
-                    console.log(`   Available options: ${availableTargets.filter(a => a !== 'Orchestrator').join(', ')}`);
-                    console.log(`   Ending round to avoid confusion.`);
-                    break;
+                    // Check if the target agent can still process
+                    if (!nextAgent.canProcess()) {
+                        console.log(`⚠️  ${currentAgent.getName()} selected ${result.targetAgent}, but they're out of turns.`);
+                        console.log(`   ${result.targetAgent} has exhausted their turns this round.`);
+                        console.log(`   Available options: ${availableTargets.filter(a => a !== 'Orchestrator').join(', ')}`);
+                        console.log(`   Ending round to avoid confusion.`);
+                        break;
+                    }
                 }
             }
 
@@ -2480,6 +2598,18 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         return output;
     }
 
+    /**
+     * @method isValidAgentName
+     * @description Checks if an agent name is valid (exists in AGENT_WORKFLOW_ORDER or is 'Orchestrator').
+     * Crucial for the Agent Handoff Protocol to ensure delegation targets are legitimate.
+     * @param {string} agentName - The name of the agent to validate.
+     * @returns {boolean} True if the agent name is valid, false otherwise.
+     * @private
+     */
+    private isValidAgentName(agentName: string): boolean {
+        return AGENT_WORKFLOW_ORDER.includes(agentName) || agentName === 'Orchestrator';
+    }
+
     private getRandomAgent(): BaseAgent | null {
         const agents = Array.from(this.agents.values());
         if (agents.length === 0) return null;
@@ -2556,6 +2686,14 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
         await FileUtils.appendToLog(cyclePath, entry);
     }
 
+    /**
+     * @method updateCostSummary
+     * @description Asynchronously updates the CSV cost summary file with detailed cost information for each agent's operations during the cycle.
+     * It collects data on input/output tokens, individual operation costs, and total cycle costs, then appends these records to a persistent CSV.
+     * This provides a granular view of resource consumption and helps in cost monitoring.
+     * @returns {Promise<void>} A Promise that resolves when the cost summary has been updated.
+     * @private
+     */
     private async updateCostSummary(): Promise<void> {
         const records = this.cycleCosts.map(cycle => {
             const agents = Array.from(this.agents.values());

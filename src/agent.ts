@@ -245,6 +245,15 @@ export class Agent extends BaseAgent {
             const isConversation = file.content.includes('TEAM DISCUSSION');
             const requireConsensus = file.content.includes('Reach consensus');
 
+            // Pre-load agent's notebook contents to inject into system prompt
+            const notebookPath = `notes/${this.config.name.toLowerCase()}-notes.md`;
+            let notebookContents = '';
+            try {
+                notebookContents = await FileUtils.readFile(notebookPath);
+            } catch {
+                // Notebook doesn't exist yet - that's fine
+            }
+
             // Generate Team Roster for dynamic context
             const teamRoster = Object.values(AGENT_CONFIGS)
                 .filter(c => c.name !== 'Director') // Hide Director to avoid agents trying to pass to it
@@ -327,6 +336,11 @@ Your system is designed to run continuously in cycles, alternating between two s
 1. **Discussion/Consensus Stage:** Decide what to implement next as a team
 2. **Implementation Stage:** Write the code for what you decided
 
+⛔ PHASE RULES:
+- During DISCUSSION: You may ONLY edit your own notebook (notes/*.md). All code file edits/writes will be REJECTED by the orchestrator. Focus on reaching consensus.
+- During IMPLEMENTATION: You may edit code files and notebooks freely.
+- Notebook updates are ALWAYS allowed in both phases.
+
 The code you're improving IS the framework you're running within. After each cycle, your changes are compiled into the framework before the next cycle runs. You're literally rebuilding yourself as you work.
 
 **Important Context:**
@@ -359,10 +373,16 @@ RESPONSE FORMAT:
 - IF you read a file, DO SOMETHING with that information.
 
 📓 YOUR NOTEBOOK: notes/${this.config.name.toLowerCase()}-notes.md
-- Read it ONLY if you strictly need to refresh your memory (don't read every turn)
+${notebookContents ? `📖 CURRENT NOTEBOOK CONTENTS (auto-loaded — this is the actual file on disk):
+--- START notes/${this.config.name.toLowerCase()}-notes.md ---
+${notebookContents}
+--- END notes/${this.config.name.toLowerCase()}-notes.md ---
+` : '(Notebook is empty or does not exist yet.)'}
+- You already have your notebook contents above — no need to fileRead it unless you suspect it changed this turn
+- When editing your notebook, use the EXACT text from above as your "find" string
 - Update it (fileEdit) with new learnings before passing on
 - Log non-MVP ideas there instead of implementing them
-- Review suggestions from other agents in their notebooks
+- ⚠️ MANDATORY: Update your notebook before signaling consensus ("agree") and before ending an implementation phase. Your notebook is your memory across phases — if you don't write it down, you will forget it.
 
 📖 HOW FILE READING WORKS (SYNCHRONOUS):
 File reading happens WITHIN your turn. You can request multiple files and they'll all be provided before you respond.
@@ -447,8 +467,10 @@ Note: DO NOT use "changes.code" - it is deprecated. Use fileEdit or fileWrite fo
                 This is a DISCUSSION, not implementation. Share ideas, ${requireConsensus ? 'debate, challenge assumptions, point out flaws' : 'build on each other\'s ideas, work collaboratively'}.
                 Remember to use fileRead on your notebook (notes/${this.config.name.toLowerCase()}-notes.md) ONLY if you need deep history (summarized context is usually enough).
                 
-                ${requireConsensus ? `CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
-                - "agree" = You think we've reached consensus and can move forward
+                ${requireConsensus ? `📓 MANDATORY: Before signaling "agree" on consensus, you MUST update your notebook (fileEdit on notes/${this.config.name.toLowerCase()}-notes.md) with your latest thoughts, decisions, and any observations from this discussion. This is REQUIRED — your notebook is your persistent memory across phases.
+
+                CONSENSUS MECHANISM: Signal if you think the team has reached agreement and is ready to conclude:
+                - "agree" = You think we've reached consensus and can move forward (MUST update notebook first!)
                 - "building" = Discussion is productive but not ready to conclude
                 - "disagree" = Significant concerns remain, need more discussion
 
