@@ -14,11 +14,11 @@
 
 | Field | Value |
 |-------|-------|
-| **lastCycleDid** | Reviewed and agreed with Morgan's proposal for an 'Error Recovery System (retry with backoff)'. |
-| **whatIWasDoing** | Documenting QA considerations for 'Error Recovery System' and updating status. |
+| **lastCycleDid** | Reviewed Morgan's proposed integration areas for 'Error Recovery System' (fileEdit, fileWrite, runCommand) and Jordan's security/quality review. |
+| **whatIWasDoing** | Outlining comprehensive QA considerations and testing strategy for 'Error Recovery System' integration points. |
 | **currentBlockers** | None. |
-| **nextSteps** | Pass to Jordan for his review of the 'Error Recovery System' proposal. |
-| **lastUpdated** | 2024-05-25 |
+| **nextSteps** | Pass to Alex for documentation considerations, or to Morgan for further implementation details, after outlining testing strategy. |
+| **lastUpdated** | 2024-05-26 |
 
 ---
 
@@ -26,6 +26,16 @@
 
 **Task:** Discuss and select next feature.
 **Outcome:** Morgan proposed 'Error Recovery System (retry with backoff)'. From a QA perspective, this is a crucial feature for reliability and autonomy. It will require robust testing of retry logic, backoff algorithms (e.g., exponential, fixed), error state management, idempotent operations, and potential cascading failures. This aligns well with my role. I agree with moving forward with this feature.
+
+From a QA perspective, the integration of retry logic into `fileEdit`, `fileWrite`, and `runCommand` requires specific testing:
+- **Retry Logic:** Verify correct retry attempts based on configurable limits.
+- **Backoff Strategy:** Test exponential backoff (or chosen strategy) to ensure delays increase appropriately.
+- **Error Classification:** Ensure only transient errors trigger retries, not persistent ones.
+- **Idempotency:** Crucial for file operations and commands; ensure repeated execution doesn't lead to incorrect state or data corruption.
+- **State Management:** How does the system recover if a retry sequence is interrupted? Do operations resume or fail cleanly?
+- **Concurrency:** How do retries interact with other concurrent operations?
+- **Logging & Monitoring:** Verify retries are logged correctly for debugging and performance analysis.
+- **Edge Cases:** Network partitions, file system locks, command timeouts, permissions issues during retries.
 
 ## Architectural Observations
 
