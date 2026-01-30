@@ -1775,10 +1775,11 @@ Reference: docs/SYSTEM_CAPABILITIES.md and docs/AGENT_GUIDE.md for full details.
             this.currentPhase = 'implementation';  // Switch to sequential mode
             console.log(`\n✅ Consensus detected! Switching to IMPLEMENTATION mode (sequential workflow).\n`);
 
-            // Reset consensus now so next cycle starts fresh discussion
-            context.discussionSummary.consensusReached = false;
-            context.discussionSummary.consensusSignals = {};
-            // Keep keyDecisions for the implementation phase to use
+            // DO NOT reset consensus here — let signals persist through implementation.
+            // The proper reset happens in updateContextAtEnd() when detectConsensusType()
+            // returns 'completion' (lines 1660-1662), which fires after agents use
+            // completion language ("validated", "verified", etc.) in their key decisions.
+            // Wiping signals here caused a loop: implementation(1 cycle) → discussion → re-agree → repeat.
 
             // Update context to reflect phase change
             await this.updateContext({
